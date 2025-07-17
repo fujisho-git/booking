@@ -135,10 +135,10 @@ const CourseList = () => {
   }
 
   return (
-    <Box>
-      <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ mb: 4 }}>
-        研修講座一覧
-      </Typography>
+    <Box sx={{ mt: { xs: 4, md: 8 } }}>
+      {/* <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ mb: 4 }}>
+        研修一覧
+      </Typography> */}
 
       <Grid container spacing={4} justifyContent="center">
         {courses.map((course) => (
