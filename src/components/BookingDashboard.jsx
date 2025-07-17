@@ -370,73 +370,175 @@ const BookingDashboard = () => {
               </Card>
             </Grid>
 
-            {/* 講座別統計 - より見やすいテーブル */}
-            <Grid item xs={12} sx={{ mt: 4 }}>
-              <Typography variant="h5" component="h2" gutterBottom textAlign="center" sx={{ mb: 4 }}>
-                講座別申し込み状況
-              </Typography>
-              <Card sx={{ maxWidth: 900, margin: '0 auto' }}>
-                <CardContent sx={{ p: 4 }}>
-                  <TableContainer>
-                    <Table>
-                      <TableHead>
-                        <TableRow>
-                          <TableCell sx={{ fontWeight: 'bold', fontSize: '1rem', py: 2 }}>
-                            講座名
-                          </TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1rem', py: 2 }}>
-                            総申し込み数
-                          </TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1rem', py: 2 }}>
-                            PC貸出申し込み
-                          </TableCell>
-                          <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '1rem', py: 2 }}>
-                            スケジュール数
-                          </TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {statistics.courseStats.map((courseStat, index) => (
-                          <TableRow 
-                            key={courseStat.courseId}
-                            sx={{ 
-                              '&:nth-of-type(odd)': { backgroundColor: 'action.hover' },
-                              '&:hover': { backgroundColor: 'action.selected' }
-                            }}
-                          >
-                            <TableCell sx={{ py: 2.5, fontSize: '0.95rem' }}>
-                              {courseStat.courseTitle}
+            {/* 講座別申込状況と日時別申込状況を横並びに */}
+            <Grid container spacing={4} sx={{ mt: 4 }}>
+              {/* 講座別申込状況 */}
+              <Grid item xs={12} lg={6}>
+                <Typography variant="h5" component="h2" gutterBottom textAlign="center" sx={{ mb: 4 }}>
+                  講座別申し込み状況
+                </Typography>
+                <Card sx={{ height: 'fit-content' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <TableContainer sx={{ maxHeight: 600, overflowY: 'auto' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              講座名
                             </TableCell>
-                            <TableCell align="center" sx={{ py: 2.5 }}>
-                              <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
-                                {courseStat.totalBookings}名
-                              </Typography>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              申込数
                             </TableCell>
-                            <TableCell align="center" sx={{ py: 2.5 }}>
-                              <Typography variant="h6" color="secondary" sx={{ fontWeight: 'bold' }}>
-                                {courseStat.pcRentals}件
-                              </Typography>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              PC貸出
                             </TableCell>
-                            <TableCell align="center" sx={{ py: 2.5 }}>
-                              <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold' }}>
-                                {courseStat.scheduleStats.length}回
-                              </Typography>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              回数
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                  
-                  {statistics.courseStats.length === 0 && (
-                    <Box textAlign="center" py={6}>
-                      <Typography color="text.secondary" variant="h6">
-                        申し込みのある講座がありません
-                      </Typography>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
+                        </TableHead>
+                        <TableBody>
+                          {statistics.courseStats.map((courseStat, index) => (
+                            <TableRow 
+                              key={courseStat.courseId}
+                              sx={{ 
+                                '&:nth-of-type(odd)': { backgroundColor: 'action.hover' },
+                                '&:hover': { backgroundColor: 'action.selected' }
+                              }}
+                            >
+                              <TableCell sx={{ py: 2, fontSize: '0.85rem' }}>
+                                {courseStat.courseTitle}
+                              </TableCell>
+                              <TableCell align="center" sx={{ py: 2 }}>
+                                <Typography variant="body1" color="primary" sx={{ fontWeight: 'bold' }}>
+                                  {courseStat.totalBookings}名
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="center" sx={{ py: 2 }}>
+                                <Typography variant="body1" color="secondary" sx={{ fontWeight: 'bold' }}>
+                                  {courseStat.pcRentals}件
+                                </Typography>
+                              </TableCell>
+                              <TableCell align="center" sx={{ py: 2 }}>
+                                <Typography variant="body1" color="success.main" sx={{ fontWeight: 'bold' }}>
+                                  {courseStat.scheduleStats.length}回
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    
+                    {statistics.courseStats.length === 0 && (
+                      <Box textAlign="center" py={4}>
+                        <Typography color="text.secondary" variant="body1">
+                          申し込みのある講座がありません
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+
+              {/* 日時別申込状況 */}
+              <Grid item xs={12} lg={6}>
+                <Typography variant="h5" component="h2" gutterBottom textAlign="center" sx={{ mb: 4 }}>
+                  日時別申し込み状況
+                </Typography>
+                <Card sx={{ height: 'fit-content' }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <TableContainer sx={{ maxHeight: 600, overflowY: 'auto' }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              開催日時
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              講座名
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              申込/定員
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              PC貸出
+                            </TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
+                              状況
+                            </TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {scheduleDetails.map((schedule, index) => {
+                            // 定員情報を取得（coursesからスケジュールの定員を探す）
+                            const course = courses.find(c => c.id === schedule.courseId);
+                            const scheduleInfo = course?.schedules?.find(s => s.id === schedule.scheduleId);
+                            const capacity = scheduleInfo?.capacity || 0;
+                            const remainingSlots = capacity - schedule.participantCount;
+                            const isFullyBooked = remainingSlots <= 0;
+                            
+                            return (
+                              <TableRow 
+                                key={`${schedule.courseId}-${schedule.scheduleId}`}
+                                sx={{ 
+                                  '&:nth-of-type(odd)': { backgroundColor: 'action.hover' },
+                                  '&:hover': { backgroundColor: 'action.selected' }
+                                }}
+                              >
+                                <TableCell sx={{ py: 2, fontSize: '0.85rem' }}>
+                                  {dayjs(schedule.scheduleDateTime.toDate()).format('MM/DD HH:mm')}
+                                </TableCell>
+                                <TableCell sx={{ py: 2, fontSize: '0.85rem' }}>
+                                  {schedule.courseTitle.length > 15 
+                                    ? `${schedule.courseTitle.substring(0, 15)}...`
+                                    : schedule.courseTitle
+                                  }
+                                </TableCell>
+                                <TableCell align="center" sx={{ py: 2 }}>
+                                  <Typography variant="body1" color="primary" sx={{ fontWeight: 'bold' }}>
+                                    {schedule.participantCount}/{capacity}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="center" sx={{ py: 2 }}>
+                                  <Typography variant="body1" color="secondary" sx={{ fontWeight: 'bold' }}>
+                                    {schedule.pcRentalCount}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell align="center" sx={{ py: 2 }}>
+                                  {isFullyBooked ? (
+                                    <Chip 
+                                      label="満席" 
+                                      color="error" 
+                                      size="small"
+                                      sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
+                                    />
+                                  ) : (
+                                    <Chip 
+                                      label={`空${remainingSlots}`} 
+                                      color="success" 
+                                      size="small"
+                                      sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
+                                    />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                    
+                    {scheduleDetails.length === 0 && (
+                      <Box textAlign="center" py={4}>
+                        <Typography color="text.secondary" variant="body1">
+                          申し込みのあるスケジュールがありません
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
             </Grid>
           </Grid>
         </Box>
@@ -455,12 +557,13 @@ const BookingDashboard = () => {
               
               <Grid container spacing={2}>
                 <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
+                  <FormControl fullWidth size="small" sx={{ minWidth: 200 }}>
                     <InputLabel>講座</InputLabel>
                     <Select
                       value={filters.courseId}
                       onChange={(e) => handleFilterChange('courseId', e.target.value)}
                       label="講座"
+                      sx={{ minWidth: 200 }}
                     >
                       <MenuItem value="">すべて</MenuItem>
                       {courses.map((course) => (
@@ -473,13 +576,14 @@ const BookingDashboard = () => {
                 </Grid>
 
                 <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small">
+                  <FormControl fullWidth size="small" sx={{ minWidth: 150 }}>
                     <InputLabel>開催日時</InputLabel>
                     <Select
                       value={filters.scheduleId}
                       onChange={(e) => handleFilterChange('scheduleId', e.target.value)}
                       label="開催日時"
                       disabled={!filters.courseId}
+                      sx={{ minWidth: 150 }}
                     >
                       <MenuItem value="">すべて</MenuItem>
                       {getAvailableSchedules().map((schedule) => (
@@ -498,16 +602,18 @@ const BookingDashboard = () => {
                     label="会社名"
                     value={filters.companyName}
                     onChange={(e) => handleFilterChange('companyName', e.target.value)}
+                    sx={{ minWidth: 120 }}
                   />
                 </Grid>
 
                 <Grid item xs={12} md={2}>
-                  <FormControl fullWidth size="small">
+                  <FormControl fullWidth size="small" sx={{ minWidth: 100 }}>
                     <InputLabel>PC貸出</InputLabel>
                     <Select
                       value={filters.needsPcRental}
                       onChange={(e) => handleFilterChange('needsPcRental', e.target.value)}
                       label="PC貸出"
+                      sx={{ minWidth: 100 }}
                     >
                       <MenuItem value="">すべて</MenuItem>
                       <MenuItem value="true">希望</MenuItem>
