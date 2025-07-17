@@ -183,26 +183,42 @@ const CourseList = () => {
                             {formatDateTime(schedule.dateTime)}
                           </Typography>
                           <Box display="flex" gap={1} mt={1} flexWrap="wrap">
-                            <Chip
-                              size="medium"
-                              icon={<Group sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }} />}
-                              label={`${availability.totalBookings}/${schedule.capacity}名`}
-                              color={availability.isFullyBooked ? 'error' : 'success'}
-                              sx={{ 
+                            <Box
+                              sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                px: 1.5,
+                                py: 0.75,
+                                border: 2,
+                                borderColor: availability.isFullyBooked ? 'error.main' : 'success.main',
+                                color: availability.isFullyBooked ? 'error.main' : 'success.main',
                                 fontSize: { xs: '0.75rem', md: '0.875rem' },
-                                fontWeight: 'bold'
+                                fontWeight: 'bold',
+                                borderRadius: 1
                               }}
-                            />
-                            <Chip
-                              size="medium"
-                              icon={<Computer sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }} />}
-                              label={`PC貸出: ${availability.pcSlotsAvailable}台`}
-                              color={availability.pcSlotsAvailable > 0 ? 'info' : 'warning'}
-                              sx={{ 
+                            >
+                              <Group sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }} />
+                              {`${availability.totalBookings}/${schedule.capacity}名`}
+                            </Box>
+                            <Box
+                              sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.5,
+                                px: 1.5,
+                                py: 0.75,
+                                border: 2,
+                                borderColor: availability.pcSlotsAvailable > 0 ? 'info.main' : 'warning.main',
+                                color: availability.pcSlotsAvailable > 0 ? 'info.main' : 'warning.main',
                                 fontSize: { xs: '0.75rem', md: '0.875rem' },
-                                fontWeight: 'bold'
+                                fontWeight: 'bold',
+                                borderRadius: 1
                               }}
-                            />
+                            >
+                              <Computer sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }} />
+                              {`PC貸出: ${availability.pcSlotsAvailable}台`}
+                            </Box>
                           </Box>
                         </Box>
                       );

@@ -50,6 +50,9 @@ const Login = () => {
       let errorMessage = '認証に失敗しました';
       
       switch (err.code) {
+        case 'auth/invalid-credential':
+          errorMessage = 'メールアドレスまたはパスワードが正しくありません';
+          break;
         case 'auth/user-not-found':
           errorMessage = 'ユーザーが見つかりません';
           break;
@@ -65,7 +68,14 @@ const Login = () => {
         case 'auth/invalid-email':
           errorMessage = '有効なメールアドレスを入力してください';
           break;
+        case 'auth/too-many-requests':
+          errorMessage = 'ログイン試行回数が多すぎます。しばらく待ってから再試行してください';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'このアカウントは無効化されています';
+          break;
         default:
+          console.log('Firebase Auth Error:', err.code, err.message);
           errorMessage = err.message || '認証に失敗しました';
       }
       

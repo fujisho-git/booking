@@ -312,13 +312,7 @@ const BookingDashboard = () => {
       {tabValue === 0 && statistics && (
         <Box sx={{ maxWidth: '1200px', margin: '0 auto', px: 2 }}>
           <Grid container spacing={4} justifyContent="center">
-            {/* 全体統計 - センター寄せで3つ並べる */}
-            <Grid item xs={12}>
-              <Typography variant="h5" component="h2" gutterBottom textAlign="center" sx={{ mb: 4 }}>
-                全体統計
-              </Typography>
-            </Grid>
-            
+            {/* 全体統計 - 横並びレイアウト */}
             <Grid item xs={12} sm={6} md={4} sx={{ display: 'flex', justifyContent: 'center' }}>
               <Card sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
                 <CardContent sx={{ py: 4 }}>
