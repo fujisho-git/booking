@@ -9,7 +9,16 @@ import CourseList from './components/CourseList';
 import BookingForm from './components/BookingForm';
 import AdminPanel from './components/AdminPanel';
 import { AuthProvider } from './contexts/AuthContext';
+import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+// dayjsの日本設定
+dayjs.extend(utc);
+dayjs.extend(timezone);
+dayjs.locale('ja');
+dayjs.tz.setDefault('Asia/Tokyo');
 
 const theme = createTheme({
   palette: {
@@ -21,7 +30,16 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif',
+  },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif',
+        },
+      },
+    },
   },
 });
 

@@ -413,6 +413,8 @@ const BookingForm = () => {
                     fontSize: { xs: '1.1rem', md: '1.25rem' },
                     fontWeight: 'bold'
                   }}
+                  className="notranslate"
+                  translate="no"
                 >
                   {alreadyBooked ? '申し込み済み' : (submitting ? '申し込み中...' : '申し込む')}
                 </Button>

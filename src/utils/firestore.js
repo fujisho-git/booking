@@ -131,4 +131,101 @@ export const updateCourse = async (courseId, updateData) => {
     console.error('講座更新エラー:', error);
     throw error;
   }
+};
+
+// すべての申し込みデータを取得
+export const getAllBookings = async () => {
+  try {
+    const q = query(bookingsCollection, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('申し込み一覧取得エラー:', error);
+    throw error;
+  }
+};
+
+// 特定の講座の申し込み一覧を取得
+export const getBookingsByCourse = async (courseId) => {
+  try {
+    const q = query(
+      bookingsCollection,
+      where('courseId', '==', courseId),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('講座別申し込み取得エラー:', error);
+    throw error;
+  }
+};
+
+// 特定のスケジュールの申し込み一覧を取得
+export const getBookingsBySchedule = async (courseId, scheduleId) => {
+  try {
+    const q = query(
+      bookingsCollection,
+      where('courseId', '==', courseId),
+      where('scheduleId', '==', scheduleId),
+      orderBy('createdAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('スケジュール別申し込み取得エラー:', error);
+    throw error;
+  }
+};
+
+// 申し込み統計情報を取得
+export const getBookingStatistics = async () => {
+  try {
+    const bookings = await getAllBookings();
+    const courses = await getCourses();
+    
+    // 講座別統計
+    const courseStats = courses.map(course => {
+      const courseBookings = bookings.filter(booking => booking.courseId === course.id);
+      const totalBookings = courseBookings.length;
+      const pcRentals = courseBookings.filter(booking => booking.needsPcRental).length;
+      
+      return {
+        courseId: course.id,
+        courseTitle: course.title,
+        totalBookings,
+        pcRentals,
+        scheduleStats: course.schedules?.map(schedule => {
+          const scheduleBookings = courseBookings.filter(booking => booking.scheduleId === schedule.id);
+          return {
+            scheduleId: schedule.id,
+            dateTime: schedule.dateTime,
+            capacity: schedule.capacity,
+            bookings: scheduleBookings.length,
+            pcRentals: scheduleBookings.filter(booking => booking.needsPcRental).length,
+            remainingSlots: schedule.capacity - scheduleBookings.length
+          };
+        }) || []
+      };
+    });
+
+    return {
+      totalBookings: bookings.length,
+      totalPcRentals: bookings.filter(booking => booking.needsPcRental).length,
+      courseStats,
+      recentBookings: bookings.slice(0, 10) // 最新10件
+    };
+  } catch (error) {
+    console.error('統計情報取得エラー:', error);
+    throw error;
+  }
 }; 

@@ -25,7 +25,9 @@ import {
   Chip,
   Divider,
   AppBar,
-  Toolbar
+  Toolbar,
+  Tabs,
+  Tab
 } from '@mui/material';
 import {
   Add,
@@ -37,11 +39,14 @@ import {
   EventAvailable,
   Computer,
   Group,
-  Logout
+  Logout,
+  Dashboard,
+  School
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { signOutUser } from '../utils/auth';
 import Login from './Login';
+import BookingDashboard from './BookingDashboard';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from 'dayjs';
 import { getCourses, createCourse, updateCourse, getBookingsCount } from '../utils/firestore';
@@ -54,6 +59,7 @@ const AdminPanel = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
@@ -206,7 +212,7 @@ const AdminPanel = () => {
     return <Login />;
   }
 
-  if (loading) {
+  if (loading && tabValue === 1) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography>読み込み中...</Typography>
@@ -231,108 +237,134 @@ const AdminPanel = () => {
         </Toolbar>
       </AppBar>
 
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          講座管理
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-        >
-          新規講座作成
-        </Button>
-      </Box>
+      <Tabs 
+        value={tabValue} 
+        onChange={(e, newValue) => setTabValue(newValue)} 
+        sx={{ mb: 3 }}
+        variant="fullWidth"
+      >
+        <Tab 
+          icon={<Dashboard />} 
+          label="申込者管理" 
+          iconPosition="start"
+        />
+        <Tab 
+          icon={<School />} 
+          label="講座管理" 
+          iconPosition="start"
+        />
+      </Tabs>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+      {/* 申込者管理タブ */}
+      {tabValue === 0 && <BookingDashboard />}
 
-      <Grid container spacing={3}>
-        {courses.map((course) => (
-          <Grid item xs={12} key={course.id}>
-            <Card>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
-                  <Box>
-                    <Typography variant="h6" component="h2">
-                      {course.title}
+      {/* 講座管理タブ */}
+      {tabValue === 1 && (
+        <>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Typography variant="h4" component="h1">
+              講座管理
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<Add />}
+              onClick={() => handleOpenDialog()}
+            >
+              新規講座作成
+            </Button>
+          </Box>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Grid container spacing={3}>
+            {courses.map((course) => (
+              <Grid item xs={12} key={course.id}>
+                <Card>
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                      <Box>
+                        <Typography variant="h6" component="h2">
+                          {course.title}
+                        </Typography>
+                      </Box>
+                      <IconButton onClick={() => handleOpenDialog(course)}>
+                        <Edit />
+                      </IconButton>
+                    </Box>
+
+                    <Divider sx={{ my: 2 }} />
+
+                    <Typography variant="h6" gutterBottom>
+                      スケジュール・申し込み状況
                     </Typography>
-                  </Box>
-                  <IconButton onClick={() => handleOpenDialog(course)}>
-                    <Edit />
-                  </IconButton>
-                </Box>
-
-                <Divider sx={{ my: 2 }} />
-
-                <Typography variant="h6" gutterBottom>
-                  スケジュール・申し込み状況
-                </Typography>
-                
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>日時</TableCell>
-                        <TableCell align="center">定員</TableCell>
-                        <TableCell align="center">申し込み数</TableCell>
-                        <TableCell align="center">PC貸出</TableCell>
-                        <TableCell align="center">状況</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {course.schedules?.map((schedule) => {
-                        const isFullyBooked = schedule.totalBookings >= schedule.capacity;
-                        const pcAvailable = schedule.pcRentalSlots - schedule.pcRentals;
-                        
-                        return (
-                          <TableRow key={schedule.id}>
-                            <TableCell>
-                              {formatDateTime(schedule.dateTime)}
-                            </TableCell>
-                            <TableCell align="center">
-                              {schedule.capacity}名
-                            </TableCell>
-                            <TableCell align="center">
-                              <Chip
-                                size="small"
-                                label={`${schedule.totalBookings}名`}
-                                color={isFullyBooked ? 'error' : 'success'}
-                              />
-                            </TableCell>
-                            <TableCell align="center">
-                              <Chip
-                                size="small"
-                                label={`${schedule.pcRentals}/${schedule.pcRentalSlots}`}
-                                color={pcAvailable > 0 ? 'info' : 'warning'}
-                              />
-                            </TableCell>
-                            <TableCell align="center">
-                              {isFullyBooked ? (
-                                <Chip size="small" label="満席" color="error" />
-                              ) : (
-                                <Chip size="small" label="受付中" color="success" />
-                              )}
-                            </TableCell>
+                    
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>日時</TableCell>
+                            <TableCell align="center">定員</TableCell>
+                            <TableCell align="center">申し込み数</TableCell>
+                            <TableCell align="center">PC貸出</TableCell>
+                            <TableCell align="center">状況</TableCell>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </CardContent>
-            </Card>
+                        </TableHead>
+                        <TableBody>
+                          {course.schedules?.map((schedule) => {
+                            const isFullyBooked = schedule.totalBookings >= schedule.capacity;
+                            const pcAvailable = schedule.pcRentalSlots - schedule.pcRentals;
+                            
+                            return (
+                              <TableRow key={schedule.id}>
+                                <TableCell>
+                                  {formatDateTime(schedule.dateTime)}
+                                </TableCell>
+                                <TableCell align="center">
+                                  {schedule.capacity}名
+                                </TableCell>
+                                <TableCell align="center">
+                                  <Chip
+                                    size="small"
+                                    label={`${schedule.totalBookings}名`}
+                                    color={isFullyBooked ? 'error' : 'success'}
+                                  />
+                                </TableCell>
+                                <TableCell align="center">
+                                  <Chip
+                                    size="small"
+                                    label={`${schedule.pcRentals}/${schedule.pcRentalSlots}`}
+                                    color={pcAvailable > 0 ? 'info' : 'warning'}
+                                  />
+                                </TableCell>
+                                <TableCell align="center">
+                                  {isFullyBooked ? (
+                                    <Chip size="small" label="満席" color="error" />
+                                  ) : (
+                                    <Chip size="small" label="受付中" color="success" />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
           </Grid>
-        ))}
-      </Grid>
 
-      {courses.length === 0 && (
-        <Alert severity="info" sx={{ mt: 3 }}>
-          講座がありません。新規講座を作成してください。
-        </Alert>
+          {courses.length === 0 && (
+            <Alert severity="info" sx={{ mt: 3 }}>
+              講座がありません。新規講座を作成してください。
+            </Alert>
+          )}
+        </>
       )}
 
       {/* 講座作成・編集ダイアログ */}

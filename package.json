@@ -17,6 +17,7 @@
     "@mui/x-date-pickers": "^8.8.0",
     "dayjs": "^1.11.13",
     "firebase": "^11.10.0",
+    "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hook-form": "^7.60.0",

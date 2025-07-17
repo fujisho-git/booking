@@ -229,6 +229,8 @@ const CourseList = () => {
                       fontSize: { xs: '1.1rem', md: '1.25rem' },
                       fontWeight: 'bold'
                     }}
+                    className="notranslate"
+                    translate="no"
                   >
                     {userBookings.has(course.id) ? '申し込み済み' : '申し込む'}
                   </Button>
