@@ -58,7 +58,6 @@ const AdminPanel = () => {
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
       title: '',
-      description: '',
       schedules: [{ 
         id: Date.now().toString(),
         dateTime: dayjs().add(1, 'day'), 
@@ -116,7 +115,6 @@ const AdminPanel = () => {
       setEditingCourse(course);
       reset({
         title: course.title,
-        description: course.description,
         schedules: course.schedules?.map(schedule => ({
           ...schedule,
           dateTime: dayjs(schedule.dateTime.toDate())
@@ -131,7 +129,6 @@ const AdminPanel = () => {
       setEditingCourse(null);
       reset({
         title: '',
-        description: '',
         schedules: [{ 
           id: Date.now().toString(),
           dateTime: dayjs().add(1, 'day'), 
@@ -156,7 +153,6 @@ const AdminPanel = () => {
 
       const courseData = {
         title: data.title.trim(),
-        description: data.description.trim(),
         schedules: data.schedules.map(schedule => ({
           id: schedule.id || Date.now().toString() + Math.random(),
           dateTime: schedule.dateTime.toDate(),
@@ -264,9 +260,6 @@ const AdminPanel = () => {
                     <Typography variant="h6" component="h2">
                       {course.title}
                     </Typography>
-                    <Typography color="text.secondary" gutterBottom>
-                      {course.description}
-                    </Typography>
                   </Box>
                   <IconButton onClick={() => handleOpenDialog(course)}>
                     <Edit />
@@ -365,110 +358,92 @@ const AdminPanel = () => {
               )}
             />
 
-            <Controller
-              name="description"
-              control={control}
-              rules={{ required: '説明を入力してください' }}
-              render={({ field }) => (
-                <TextField
-                  {...field}
-                  fullWidth
-                  label="講座説明"
-                  margin="normal"
-                  multiline
-                  rows={3}
-                  error={!!errors.description}
-                  helperText={errors.description?.message}
-                />
-              )}
-            />
-
-            <Box mt={3}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">開催スケジュール</Typography>
-                <Button variant="outlined" onClick={addSchedule} startIcon={<Add />}>
-                  日程追加
-                </Button>
-              </Box>
-
-              {fields.map((field, index) => (
-                <Box key={field.id} sx={{ border: 1, borderColor: 'grey.300', borderRadius: 1, p: 2, mb: 2 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="subtitle1">
-                      スケジュール {index + 1}
-                    </Typography>
-                    {fields.length > 1 && (
-                      <IconButton onClick={() => remove(index)}>
-                        <Delete />
-                      </IconButton>
-                    )}
-                  </Box>
-
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
-                      <Controller
-                        name={`schedules.${index}.dateTime`}
-                        control={control}
-                        rules={{ required: '日時を選択してください' }}
-                        render={({ field }) => (
-                          <DateTimePicker
-                            {...field}
-                            label="開催日時"
-                            slotProps={{
-                              textField: {
-                                fullWidth: true,
-                                error: !!errors.schedules?.[index]?.dateTime,
-                                helperText: errors.schedules?.[index]?.dateTime?.message
-                              }
-                            }}
-                          />
-                        )}
-                      />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                      <Controller
-                        name={`schedules.${index}.capacity`}
-                        control={control}
-                        rules={{ 
-                          required: '定員を入力してください',
-                          min: { value: 1, message: '定員は1以上で入力してください' }
-                        }}
-                        render={({ field }) => (
-                          <TextField
-                            {...field}
-                            fullWidth
-                            label="定員"
-                            type="number"
-                            error={!!errors.schedules?.[index]?.capacity}
-                            helperText={errors.schedules?.[index]?.capacity?.message}
-                          />
-                        )}
-                      />
-                    </Grid>
-                    <Grid item xs={6} md={3}>
-                      <Controller
-                        name={`schedules.${index}.pcRentalSlots`}
-                        control={control}
-                        rules={{ 
-                          required: 'PC貸出枠を入力してください',
-                          min: { value: 0, message: 'PC貸出枠は0以上で入力してください' }
-                        }}
-                        render={({ field }) => (
-                          <TextField
-                            {...field}
-                            fullWidth
-                            label="PC貸出枠"
-                            type="number"
-                            error={!!errors.schedules?.[index]?.pcRentalSlots}
-                            helperText={errors.schedules?.[index]?.pcRentalSlots?.message}
-                          />
-                        )}
-                      />
-                    </Grid>
-                  </Grid>
-                </Box>
-              ))}
+            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 3, mb: 2 }}>
+              <Typography variant="h6">
+                開催スケジュール
+              </Typography>
+              <Button variant="outlined" onClick={addSchedule} startIcon={<Add />}>
+                日程追加
+              </Button>
             </Box>
+
+            {fields.map((field, index) => (
+              <Box key={field.id} sx={{ border: 1, borderColor: 'grey.300', borderRadius: 1, p: 2, mb: 2 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Typography variant="subtitle1">
+                    スケジュール {index + 1}
+                  </Typography>
+                  {fields.length > 1 && (
+                    <IconButton onClick={() => remove(index)}>
+                      <Delete />
+                    </IconButton>
+                  )}
+                </Box>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name={`schedules.${index}.dateTime`}
+                      control={control}
+                      rules={{ required: '日時を選択してください' }}
+                      render={({ field }) => (
+                        <DateTimePicker
+                          {...field}
+                          label="開催日時"
+                          slotProps={{
+                            textField: {
+                              fullWidth: true,
+                              error: !!errors.schedules?.[index]?.dateTime,
+                              helperText: errors.schedules?.[index]?.dateTime?.message
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Controller
+                      name={`schedules.${index}.capacity`}
+                      control={control}
+                      rules={{ 
+                        required: '定員を入力してください',
+                        min: { value: 1, message: '定員は1以上で入力してください' }
+                      }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="定員"
+                          type="number"
+                          error={!!errors.schedules?.[index]?.capacity}
+                          helperText={errors.schedules?.[index]?.capacity?.message}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Controller
+                      name={`schedules.${index}.pcRentalSlots`}
+                      control={control}
+                      rules={{ 
+                        required: 'PC貸出枠を入力してください',
+                        min: { value: 0, message: 'PC貸出枠は0以上で入力してください' }
+                      }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                          fullWidth
+                          label="PC貸出枠"
+                          type="number"
+                          error={!!errors.schedules?.[index]?.pcRentalSlots}
+                          helperText={errors.schedules?.[index]?.pcRentalSlots?.message}
+                        />
+                      )}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseDialog}>

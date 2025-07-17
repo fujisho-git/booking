@@ -170,10 +170,6 @@ const CourseList = () => {
                 }
               }}>
                 <CardContent sx={{ flexGrow: 1, p: { xs: 3, md: 4 } }}>
-                  <Typography variant="body1" color="text.secondary" sx={{ mb: 3, fontSize: { xs: '1rem', md: '1.125rem' }, textAlign: 'center' }}>
-                    {course.description}
-                  </Typography>
-
                   <Box sx={{ mb: 3 }}>
                     <Typography variant="subtitle1" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.125rem' }, fontWeight: 'bold' }}>
                       <CalendarToday sx={{ fontSize: { xs: 18, md: 20 }, mr: 1 }} />

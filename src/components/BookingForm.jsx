@@ -254,16 +254,6 @@ const BookingForm = () => {
         >
           {course.title}
         </Typography>
-        <Typography 
-          variant="body1" 
-          color="text.secondary" 
-          sx={{
-            fontSize: { xs: '1rem', md: '1.125rem' },
-            lineHeight: 1.6
-          }}
-        >
-          {course.description}
-        </Typography>
       </Box>
 
       <Grid container spacing={3} justifyContent="center">
