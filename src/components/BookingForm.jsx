@@ -194,7 +194,13 @@ const BookingForm = () => {
   };
 
   const formatDateTime = (dateTime) => {
-    return dayjs(dateTime.toDate()).format('YYYY年MM月DD日(ddd) HH:mm');
+    return dayjs(dateTime.toDate()).format('YYYY年MM月DD日(ddd)');
+  };
+
+  const formatTimeRange = (startTime, endTime) => {
+    const start = dayjs(startTime.toDate()).format('HH:mm');
+    const end = endTime ? dayjs(endTime.toDate()).format('HH:mm') : '';
+    return end ? `${start}～${end}` : `${start}～`;
   };
 
   if (loading) {
@@ -237,9 +243,7 @@ const BookingForm = () => {
         講座一覧に戻る
       </Button>
 
-      <Typography variant="h4" component="h1" gutterBottom>
-        講座申し込み
-      </Typography>
+
 
       <Box sx={{ mb: 4, textAlign: 'center' }}>
         <Typography 
@@ -282,39 +286,88 @@ const BookingForm = () => {
                         field.onChange(e);
                         setSelectedSchedule(e.target.value);
                       }}>
-                        {course.schedules?.map((schedule) => {
-                          const availability = getAvailabilityStatus(schedule);
-                          return (
-                            <Box key={schedule.id} sx={{ border: 1, borderColor: 'grey.300', borderRadius: 1, p: 2, mb: 1 }}>
-                              <FormControlLabel
-                                value={schedule.id}
-                                control={<Radio disabled={availability.isFullyBooked} />}
-                                label={
-                                  <Box>
-                                    <Typography variant="body1">
-                                      {formatDateTime(schedule.dateTime)}
-                                    </Typography>
-                                    <Box display="flex" gap={1} mt={1}>
-                                      <Chip
-                                        size="small"
-                                        label={`${availability.totalBookings}/${schedule.capacity}名`}
-                                        color={availability.isFullyBooked ? 'error' : 'success'}
-                                      />
-                                      <Chip
-                                        size="small"
-                                        label={`PC貸出: ${availability.pcSlotsAvailable}台`}
-                                        color={availability.pcSlotsAvailable > 0 ? 'info' : 'warning'}
-                                      />
-                                      {availability.isFullyBooked && (
-                                        <Chip size="small" label="満席" color="error" />
-                                      )}
-                                    </Box>
-                                  </Box>
-                                }
-                              />
-                            </Box>
-                          );
-                        })}
+                        <Grid container spacing={2} sx={{ mt: 1 }}>
+                          {course.schedules?.map((schedule) => {
+                            const availability = getAvailabilityStatus(schedule);
+                            return (
+                              <Grid item xs={12} sm={6} md={4} key={schedule.id}>
+                                <Card 
+                                  sx={{ 
+                                    border: 2,
+                                    borderColor: field.value === schedule.id ? 'primary.main' : 'grey.300',
+                                    bgcolor: field.value === schedule.id ? 'primary.50' : 'transparent',
+                                    cursor: availability.isFullyBooked ? 'not-allowed' : 'pointer',
+                                    opacity: availability.isFullyBooked ? 0.6 : 1,
+                                    transition: 'all 0.2s ease-in-out',
+                                    position: 'relative',
+                                    '&:hover': availability.isFullyBooked ? {} : {
+                                      borderColor: 'primary.light',
+                                      transform: 'translateY(-2px)',
+                                      boxShadow: 2
+                                    }
+                                  }}
+                                  onClick={() => {
+                                    if (!availability.isFullyBooked) {
+                                      field.onChange(schedule.id);
+                                      setSelectedSchedule(schedule.id);
+                                    }
+                                  }}
+                                >
+                                  <CardContent sx={{ p: 2 }}>
+                                    <FormControlLabel
+                                      value={schedule.id}
+                                      control={
+                                        <Radio 
+                                          disabled={availability.isFullyBooked}
+                                          checked={field.value === schedule.id}
+                                          sx={{ 
+                                            position: 'absolute',
+                                            top: 8,
+                                            right: 8,
+                                            zIndex: 1
+                                          }}
+                                        />
+                                      }
+                                      label={
+                                        <Box sx={{ width: '100%', pr: 5 }}>
+                                          <Typography variant="body1" sx={{ fontWeight: 'bold', mb: 1 }}>
+                                            {formatDateTime(schedule.dateTime)}
+                                          </Typography>
+                                          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                                            {formatTimeRange(schedule.dateTime, schedule.endTime)}
+                                          </Typography>
+                                          <Box display="flex" gap={1} flexWrap="wrap">
+                                            <Chip
+                                              size="small"
+                                              label={`${availability.totalBookings}/${schedule.capacity}名`}
+                                              color={availability.isFullyBooked ? 'error' : 'success'}
+                                              variant="outlined"
+                                            />
+                                            <Chip
+                                              size="small"
+                                              label={`PC貸出: ${availability.pcSlotsAvailable}台`}
+                                              color={availability.pcSlotsAvailable > 0 ? 'info' : 'warning'}
+                                              variant="outlined"
+                                            />
+                                            {availability.isFullyBooked && (
+                                              <Chip 
+                                                size="small" 
+                                                label="満席" 
+                                                color="error" 
+                                                variant="outlined"
+                                              />
+                                            )}
+                                          </Box>
+                                        </Box>
+                                      }
+                                      sx={{ m: 0, width: '100%' }}
+                                    />
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
                       </RadioGroup>
                     )}
                   />

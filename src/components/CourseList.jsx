@@ -16,7 +16,8 @@ import {
   EventAvailable,
   Computer,
   Group,
-  CalendarToday
+  CalendarToday,
+  School
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import { getCourses, getBookingsCount, checkUserBookingExists } from '../utils/firestore';
@@ -118,8 +119,12 @@ const CourseList = () => {
     };
   };
 
-  const formatDateTime = (dateTime) => {
-    return dayjs(dateTime.toDate()).format('YYYY年MM月DD日(ddd) HH:mm');
+  const formatDateTime = (schedule) => {
+    const date = dayjs(schedule.dateTime.toDate()).format('YYYY年MM月DD日(ddd)');
+    const timeRange = schedule.endTime 
+      ? `${dayjs(schedule.dateTime.toDate()).format('HH:mm')}～${dayjs(schedule.endTime.toDate()).format('HH:mm')}`
+      : `${dayjs(schedule.dateTime.toDate()).format('HH:mm')}～`;
+    return `${date} ${timeRange}`;
   };
 
   if (loading) {
@@ -140,119 +145,115 @@ const CourseList = () => {
         研修一覧
       </Typography> */}
 
-      <Grid container spacing={4} justifyContent="center">
+      <Grid container spacing={6} justifyContent="center" sx={{ px: { xs: 2, md: 4 } }}>
         {courses.map((course) => (
-          <Grid item xs={12} sm={6} md={4} key={course.id}>
-            <Box sx={{ 
+          <Grid item xs={12} md={6} lg={4} key={course.id}>
+            <Card sx={{ 
+              height: '100%', 
               display: 'flex', 
               flexDirection: 'column',
-              height: '100%'
+              transition: 'all 0.3s ease-in-out',
+              boxShadow: 4,
+              border: '3px solid',
+              borderColor: 'primary.light',
+              borderRadius: 4,
+              background: 'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)',
+              position: 'relative',
+              overflow: 'hidden',
+              minHeight: { xs: 300, md: 350 },
+              '&:hover': {
+                transform: 'translateY(-12px) scale(1.02)',
+                boxShadow: 8,
+                borderColor: 'primary.main',
+                '& .course-icon': {
+                  transform: 'rotate(360deg) scale(1.2)',
+                  color: 'primary.main'
+                }
+              },
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '6px',
+                background: 'linear-gradient(90deg, primary.main, secondary.main)',
+                zIndex: 1
+              }
             }}>
-              <Box mb={3}>
+              <CardContent sx={{ 
+                flexGrow: 1, 
+                p: { xs: 5, md: 6 }, 
+                textAlign: 'center',
+                position: 'relative',
+                zIndex: 2
+              }}>
+                <Box sx={{ mb: 4 }}>
+                  <School 
+                    className="course-icon"
+                    sx={{ 
+                      fontSize: { xs: 60, md: 80 }, 
+                      color: 'primary.light',
+                      mb: 3,
+                      transition: 'all 0.3s ease-in-out'
+                    }} 
+                  />
+                </Box>
+                
                 <Typography variant="h2" component="h2" sx={{ 
-                  fontWeight: 'bold', 
-                  fontSize: { xs: '2.5rem', md: '3.5rem' }, 
-                  textAlign: 'center',
-                  mb: 3
+                  fontWeight: 800, 
+                  fontSize: { xs: '2.2rem', md: '2.8rem' }, 
+                  color: 'primary.main',
+                  mb: 2,
+                  lineHeight: 1.1,
+                  textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  letterSpacing: '-0.02em'
                 }}>
                   {course.title}
                 </Typography>
-              </Box>
+              </CardContent>
               
-              <Card sx={{ 
-                height: '100%', 
-                display: 'flex', 
-                flexDirection: 'column',
-                transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
-                '&:hover': {
-                  transform: 'translateY(-4px)',
-                  boxShadow: 4
-                }
-              }}>
-                <CardContent sx={{ flexGrow: 1, p: { xs: 3, md: 4 } }}>
-                  <Box sx={{ mb: 3 }}>
-                    <Typography variant="subtitle1" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.125rem' }, fontWeight: 'bold' }}>
-                      <CalendarToday sx={{ fontSize: { xs: 18, md: 20 }, mr: 1 }} />
-                      開催日時:
-                    </Typography>
-                    {course.schedules?.map((schedule) => {
-                      const availability = getAvailabilityStatus(course, schedule);
-                      return (
-                        <Box key={schedule.id} sx={{ ml: 3, mb: 1.5 }}>
-                          <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', md: '1rem' }, fontWeight: 'medium' }}>
-                            {formatDateTime(schedule.dateTime)}
-                          </Typography>
-                          <Box display="flex" gap={1} mt={1} flexWrap="wrap">
-                            <Box
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                px: 1.5,
-                                py: 0.75,
-                                border: 2,
-                                borderColor: availability.isFullyBooked ? 'error.main' : 'success.main',
-                                color: availability.isFullyBooked ? 'error.main' : 'success.main',
-                                fontSize: { xs: '0.75rem', md: '0.875rem' },
-                                fontWeight: 'bold',
-                                borderRadius: 1
-                              }}
-                            >
-                              <Group sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }} />
-                              {`${availability.totalBookings}/${schedule.capacity}名`}
-                            </Box>
-                            <Box
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                px: 1.5,
-                                py: 0.75,
-                                border: 2,
-                                borderColor: availability.pcSlotsAvailable > 0 ? 'info.main' : 'warning.main',
-                                color: availability.pcSlotsAvailable > 0 ? 'info.main' : 'warning.main',
-                                fontSize: { xs: '0.75rem', md: '0.875rem' },
-                                fontWeight: 'bold',
-                                borderRadius: 1
-                              }}
-                            >
-                              <Computer sx={{ fontSize: { xs: '1rem', md: '1.125rem' } }} />
-                              {`PC貸出: ${availability.pcSlotsAvailable}台`}
-                            </Box>
-                          </Box>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                </CardContent>
-                
-                <CardActions sx={{ p: { xs: 3, md: 4 }, pt: 0 }}>
-                  <Button
-                    size="large"
-                    color="primary"
-                    variant="contained"
-                    startIcon={<EventAvailable />}
-                    onClick={() => navigate(`/booking/${course.id}`)}
-                    disabled={
-                      course.schedules?.every(schedule => 
-                        getAvailabilityStatus(course, schedule).isFullyBooked
-                      ) || userBookings.has(course.id)
+              <CardActions sx={{ p: { xs: 5, md: 6 }, pt: 0, position: 'relative', zIndex: 2 }}>
+                <Button
+                  size="large"
+                  color="primary"
+                  variant="contained"
+                  startIcon={<EventAvailable />}
+                  onClick={() => navigate(`/booking/${course.id}`)}
+                  disabled={
+                    course.schedules?.every(schedule => 
+                      getAvailabilityStatus(course, schedule).isFullyBooked
+                    ) || userBookings.has(course.id)
+                  }
+                  fullWidth
+                  sx={{ 
+                    py: { xs: 2.5, md: 3 },
+                    px: { xs: 4, md: 6 },
+                    fontSize: { xs: '1.3rem', md: '1.5rem' },
+                    fontWeight: 'bold',
+                    borderRadius: 6,
+                    boxShadow: 3,
+                    background: 'linear-gradient(45deg, primary.main, primary.dark)',
+                    textTransform: 'none',
+                    letterSpacing: '0.5px',
+                    minHeight: { xs: 56, md: 64 },
+                    '&:hover': {
+                      boxShadow: 6,
+                      background: 'linear-gradient(45deg, primary.dark, primary.main)',
+                      transform: 'translateY(-2px)'
+                    },
+                    '&:disabled': {
+                      background: 'linear-gradient(45deg, #bdbdbd, #9e9e9e)',
+                      color: 'white'
                     }
-                    fullWidth
-                    sx={{ 
-                      mt: 'auto',
-                      py: { xs: 1.5, md: 2 },
-                      fontSize: { xs: '1.1rem', md: '1.25rem' },
-                      fontWeight: 'bold'
-                    }}
-                    className="notranslate"
-                    translate="no"
-                  >
-                    {userBookings.has(course.id) ? '申し込み済み' : '申し込む'}
-                  </Button>
-                </CardActions>
-              </Card>
-            </Box>
+                  }}
+                  className="notranslate"
+                  translate="no"
+                >
+                  {userBookings.has(course.id) ? '申し込み済み' : '申し込む'}
+                </Button>
+              </CardActions>
+            </Card>
           </Grid>
         ))}
       </Grid>

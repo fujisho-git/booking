@@ -10,22 +10,18 @@ import {
   Alert,
   CircularProgress,
   Container,
-  Divider
 } from '@mui/material';
 import {
   Login as LoginIcon,
   AdminPanelSettings,
-  PersonAdd
 } from '@mui/icons-material';
-import { signIn, createAdminUser } from '../utils/auth';
+import { signIn } from '../utils/auth';
 
 const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showCreateAccount, setShowCreateAccount] = useState(false);
-  const [success, setSuccess] = useState('');
 
-  const { control, handleSubmit, formState: { errors }, reset } = useForm({
+  const { control, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       email: '',
       password: ''
@@ -36,16 +32,7 @@ const Login = () => {
     try {
       setLoading(true);
       setError('');
-      setSuccess('');
-
-      if (showCreateAccount) {
-        await createAdminUser(data.email, data.password);
-        setSuccess('管理者アカウントが作成されました');
-        setShowCreateAccount(false);
-        reset();
-      } else {
-        await signIn(data.email, data.password);
-      }
+      await signIn(data.email, data.password);
     } catch (err) {
       let errorMessage = '認証に失敗しました';
       
@@ -58,12 +45,6 @@ const Login = () => {
           break;
         case 'auth/wrong-password':
           errorMessage = 'パスワードが正しくありません';
-          break;
-        case 'auth/email-already-in-use':
-          errorMessage = 'このメールアドレスは既に使用されています';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'パスワードは6文字以上で入力してください';
           break;
         case 'auth/invalid-email':
           errorMessage = '有効なメールアドレスを入力してください';
@@ -110,12 +91,6 @@ const Login = () => {
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
-              </Alert>
-            )}
-
-            {success && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                {success}
               </Alert>
             )}
 
@@ -174,35 +149,12 @@ const Login = () => {
                 variant="contained"
                 size="large"
                 disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : (showCreateAccount ? <PersonAdd /> : <LoginIcon />)}
+                startIcon={loading ? <CircularProgress size={20} /> : <LoginIcon />}
                 sx={{ mt: 3, mb: 2 }}
               >
-                {loading ? (showCreateAccount ? 'アカウント作成中...' : 'ログイン中...') : (showCreateAccount ? 'アカウント作成' : 'ログイン')}
+                {loading ? 'ログイン中...' : 'ログイン'}
               </Button>
             </form>
-
-            <Divider sx={{ my: 2 }} />
-
-            <Box textAlign="center">
-              <Button
-                variant="text"
-                onClick={() => {
-                  setShowCreateAccount(!showCreateAccount);
-                  setError('');
-                  setSuccess('');
-                  reset();
-                }}
-                disabled={loading}
-              >
-                {showCreateAccount ? 'ログインに戻る' : '初回セットアップ（アカウント作成）'}
-              </Button>
-            </Box>
-
-            <Box mt={2}>
-              <Typography variant="caption" color="text.secondary" display="block">
-                デモ用アカウント: admin@example.com / password123
-              </Typography>
-            </Box>
           </CardContent>
         </Card>
       </Box>

@@ -2,7 +2,6 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  createUserWithEmailAndPassword 
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -23,17 +22,6 @@ export const signOutUser = async () => {
     await signOut(auth);
   } catch (error) {
     console.error('ログアウトエラー:', error);
-    throw error;
-  }
-};
-
-// 管理者アカウント作成（開発用）
-export const createAdminUser = async (email, password) => {
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
-  } catch (error) {
-    console.error('アカウント作成エラー:', error);
     throw error;
   }
 };

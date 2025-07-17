@@ -27,7 +27,8 @@ import {
   AppBar,
   Toolbar,
   Tabs,
-  Tab
+  Tab,
+  Container
 } from '@mui/material';
 import {
   Add,
@@ -67,6 +68,7 @@ const AdminPanel = () => {
       schedules: [{ 
         id: Date.now().toString(),
         dateTime: dayjs().add(1, 'day'), 
+        endTime: dayjs().add(1, 'day').add(2, 'hour'),
         capacity: 10, 
         pcRentalSlots: 5 
       }]
@@ -123,10 +125,12 @@ const AdminPanel = () => {
         title: course.title,
         schedules: course.schedules?.map(schedule => ({
           ...schedule,
-          dateTime: dayjs(schedule.dateTime.toDate())
+          dateTime: dayjs(schedule.dateTime.toDate()),
+          endTime: schedule.endTime ? dayjs(schedule.endTime.toDate()) : dayjs(schedule.dateTime.toDate()).add(2, 'hour')
         })) || [{ 
           id: Date.now().toString(),
           dateTime: dayjs().add(1, 'day'), 
+          endTime: dayjs().add(1, 'day').add(2, 'hour'),
           capacity: 10, 
           pcRentalSlots: 5 
         }]
@@ -138,6 +142,7 @@ const AdminPanel = () => {
         schedules: [{ 
           id: Date.now().toString(),
           dateTime: dayjs().add(1, 'day'), 
+          endTime: dayjs().add(1, 'day').add(2, 'hour'),
           capacity: 10, 
           pcRentalSlots: 5 
         }]
@@ -162,6 +167,7 @@ const AdminPanel = () => {
         schedules: data.schedules.map(schedule => ({
           id: schedule.id || Date.now().toString() + Math.random(),
           dateTime: schedule.dateTime.toDate(),
+          endTime: schedule.endTime.toDate(),
           capacity: parseInt(schedule.capacity),
           pcRentalSlots: parseInt(schedule.pcRentalSlots)
         }))
@@ -187,6 +193,7 @@ const AdminPanel = () => {
     append({ 
       id: Date.now().toString(),
       dateTime: dayjs().add(1, 'day'), 
+      endTime: dayjs().add(1, 'day').add(2, 'hour'),
       capacity: 10, 
       pcRentalSlots: 5 
     });
@@ -221,7 +228,7 @@ const AdminPanel = () => {
   }
 
   return (
-    <Box>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <AppBar position="static" color="transparent" elevation={1} sx={{ mb: 3 }}>
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
@@ -417,11 +424,11 @@ const AdminPanel = () => {
                     <Controller
                       name={`schedules.${index}.dateTime`}
                       control={control}
-                      rules={{ required: '日時を選択してください' }}
+                      rules={{ required: '開始日時を選択してください' }}
                       render={({ field }) => (
                         <DateTimePicker
                           {...field}
-                          label="開催日時"
+                          label="開始日時"
                           slotProps={{
                             textField: {
                               fullWidth: true,
@@ -433,7 +440,27 @@ const AdminPanel = () => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={6} md={3}>
+                  <Grid item xs={12} md={6}>
+                    <Controller
+                      name={`schedules.${index}.endTime`}
+                      control={control}
+                      rules={{ required: '終了日時を選択してください' }}
+                      render={({ field }) => (
+                        <DateTimePicker
+                          {...field}
+                          label="終了日時"
+                          slotProps={{
+                            textField: {
+                              fullWidth: true,
+                              error: !!errors.schedules?.[index]?.endTime,
+                              helperText: errors.schedules?.[index]?.endTime?.message
+                            }
+                          }}
+                        />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={6} md={6}>
                     <Controller
                       name={`schedules.${index}.capacity`}
                       control={control}
@@ -453,7 +480,7 @@ const AdminPanel = () => {
                       )}
                     />
                   </Grid>
-                  <Grid item xs={6} md={3}>
+                  <Grid item xs={6} md={6}>
                     <Controller
                       name={`schedules.${index}.pcRentalSlots`}
                       control={control}
@@ -487,7 +514,7 @@ const AdminPanel = () => {
           </DialogActions>
         </form>
       </Dialog>
-    </Box>
+    </Container>
   );
 };
 
