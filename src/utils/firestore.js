@@ -8,7 +8,8 @@ import {
   query, 
   where, 
   orderBy,
-  serverTimestamp 
+  serverTimestamp,
+  runTransaction 
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -62,16 +63,85 @@ export const createCourse = async (courseData) => {
   }
 };
 
-// 申し込みの作成
+// 申し込みの作成（定員制御付き）
 export const createBooking = async (bookingData) => {
   try {
-    const docRef = await addDoc(bookingsCollection, {
-      ...bookingData,
-      createdAt: serverTimestamp()
+    const result = await runTransaction(db, async (transaction) => {
+      // 1. 現在の申し込み状況をチェック
+      const bookingsQuery = query(
+        bookingsCollection,
+        where('courseId', '==', bookingData.courseId),
+        where('scheduleId', '==', bookingData.scheduleId)
+      );
+      const bookingsSnapshot = await getDocs(bookingsQuery);
+      const currentBookings = bookingsSnapshot.docs.map(doc => doc.data());
+
+      // 2. 重複申し込みチェック
+      const duplicateBooking = currentBookings.find(booking => 
+        booking.companyName === bookingData.companyName &&
+        booking.fullName === bookingData.fullName
+      );
+      
+      if (duplicateBooking) {
+        throw new Error('DUPLICATE_BOOKING');
+      }
+
+      // 3. 講座情報を取得
+      const courseRef = doc(db, 'courses', bookingData.courseId);
+      const courseDoc = await transaction.get(courseRef);
+      
+      if (!courseDoc.exists()) {
+        throw new Error('COURSE_NOT_FOUND');
+      }
+
+      const courseData = courseDoc.data();
+      const schedule = courseData.schedules?.find(s => s.id === bookingData.scheduleId);
+      
+      if (!schedule) {
+        throw new Error('SCHEDULE_NOT_FOUND');
+      }
+
+      // 4. 定員チェック
+      const totalBookings = currentBookings.length;
+      if (totalBookings >= schedule.capacity) {
+        throw new Error('CAPACITY_EXCEEDED');
+      }
+
+      // 5. PC貸出枠チェック
+      if (bookingData.needsPcRental) {
+        const pcRentals = currentBookings.filter(booking => booking.needsPcRental).length;
+        if (pcRentals >= schedule.pcRentalSlots) {
+          throw new Error('PC_RENTAL_FULL');
+        }
+      }
+
+      // 6. 申し込みデータを作成
+      const newBookingRef = doc(bookingsCollection);
+      transaction.set(newBookingRef, {
+        ...bookingData,
+        createdAt: serverTimestamp()
+      });
+
+      return newBookingRef.id;
     });
-    return docRef.id;
+
+    return result;
   } catch (error) {
     console.error('申し込み作成エラー:', error);
+    
+    // カスタムエラーメッセージを設定
+    if (error.message === 'DUPLICATE_BOOKING') {
+      throw new Error('この講座には既に申し込み済みです。一つの講座につき一人一回までの申し込みとなります。');
+    } else if (error.message === 'CAPACITY_EXCEEDED') {
+      throw new Error('申し訳ございませんが、選択された日時は定員に達しています。他の日時をお選びください。');
+    } else if (error.message === 'PC_RENTAL_FULL') {
+      throw new Error('申し訳ございませんが、PC貸出枠が満席です。PC持参でお申し込みください。');
+    } else if (error.message === 'COURSE_NOT_FOUND') {
+      throw new Error('講座が見つかりません。');
+    } else if (error.message === 'SCHEDULE_NOT_FOUND') {
+      throw new Error('指定された日時が見つかりません。');
+    }
+    
     throw error;
   }
 };

@@ -132,32 +132,7 @@ const BookingForm = () => {
       setSubmitting(true);
       setError(null);
 
-      // 申し込み済みチェック
-      const hasBooking = await checkUserBookingExists(
-        courseId, 
-        data.companyName, 
-        data.fullName
-      );
-
-      if (hasBooking) {
-        setError('この講座には既に申し込み済みです。一つの講座につき一人一回までの申し込みとなります。');
-        return;
-      }
-
       const selectedScheduleData = course.schedules.find(s => s.id === data.scheduleId);
-      const availability = getAvailabilityStatus(selectedScheduleData);
-
-      // 定員チェック
-      if (availability.isFullyBooked) {
-        setError('申し訳ございませんが、選択された日時は定員に達しています。');
-        return;
-      }
-
-      // PC貸出チェック
-      if (data.needsPcRental === 'true' && availability.pcSlotsAvailable <= 0) {
-        setError('申し訳ございませんが、PC貸出枠が満席です。');
-        return;
-      }
 
       const bookingData = {
         courseId,
@@ -177,6 +152,14 @@ const BookingForm = () => {
         fullName: data.fullName.trim()
       }));
 
+      // 申し込み状況を最新に更新
+      const counts = {};
+      for (const schedule of course.schedules || []) {
+        const { totalBookings, pcRentals } = await getBookingsCount(courseId, schedule.id);
+        counts[schedule.id] = { totalBookings, pcRentals };
+      }
+      setBookingCounts(counts);
+
       setSuccess(true);
       reset();
       
@@ -186,7 +169,8 @@ const BookingForm = () => {
       }, 3000);
 
     } catch (err) {
-      setError('申し込みの送信に失敗しました。もう一度お試しください。');
+      // トランザクション処理からのエラーメッセージをそのまま表示
+      setError(err.message || '申し込みの送信に失敗しました。もう一度お試しください。');
       console.error(err);
     } finally {
       setSubmitting(false);
@@ -289,6 +273,8 @@ const BookingForm = () => {
                         <Grid container spacing={2} sx={{ mt: 1 }}>
                           {course.schedules?.map((schedule) => {
                             const availability = getAvailabilityStatus(schedule);
+                            const isNearCapacity = availability.remainingSlots <= 3 && availability.remainingSlots > 0;
+                            
                             return (
                               <Grid item xs={12} sm={6} md={4} key={schedule.id}>
                                 <Card 
@@ -354,6 +340,14 @@ const BookingForm = () => {
                                                 size="small" 
                                                 label="満席" 
                                                 color="error" 
+                                                variant="outlined"
+                                              />
+                                            )}
+                                            {isNearCapacity && (
+                                              <Chip 
+                                                size="small" 
+                                                label="残りわずか" 
+                                                color="warning" 
                                                 variant="outlined"
                                               />
                                             )}
