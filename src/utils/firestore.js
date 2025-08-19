@@ -5,6 +5,7 @@ import {
   getDoc, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   query, 
   where, 
   orderBy,
@@ -12,10 +13,29 @@ import {
   runTransaction 
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import dayjs from 'dayjs';
+
+// Firestore接続テスト関数
+export const testFirestoreConnection = async () => {
+  try {
+    // テスト用のシンプルなクエリを実行
+    const testQuery = query(coursesCollection);
+    await getDocs(testQuery);
+    return { success: true, message: 'Firestore接続成功' };
+  } catch (error) {
+    console.error('Firestore接続テストエラー:', error);
+    return { 
+      success: false, 
+      message: `Firestore接続エラー: ${error.message}`,
+      code: error.code 
+    };
+  }
+};
 
 // 講座関連の操作
 export const coursesCollection = collection(db, 'courses');
 export const bookingsCollection = collection(db, 'bookings');
+export const cancelLogsCollection = collection(db, 'cancelLogs');
 
 // 講座の取得
 export const getCourses = async () => {
@@ -146,7 +166,7 @@ export const createBooking = async (bookingData) => {
   }
 };
 
-// 特定のユーザーが特定の講座に申し込み済みかチェック
+// 特定のユーザーが特定の講座に申し込み済みかチェック（講座IDベース）
 export const checkUserBookingExists = async (courseId, companyName, fullName) => {
   try {
     if (!companyName || !fullName) {
@@ -164,6 +184,47 @@ export const checkUserBookingExists = async (courseId, companyName, fullName) =>
     return !querySnapshot.empty;
   } catch (error) {
     console.error('申し込み確認エラー:', error);
+    console.error('エラー詳細:', {
+      code: error.code,
+      message: error.message,
+      courseId,
+      companyName: companyName?.trim(),
+      fullName: fullName?.trim()
+    });
+    
+    // エラーが発生した場合は安全側に倒して false を返す
+    // （重複申し込みチェックが失敗した場合、申し込み自体は通すが後でバリデーションされる）
+    return false;
+  }
+};
+
+// 特定のユーザーが特定の講座名で申し込み済みかチェック（講座名ベース）
+export const checkUserBookingExistsByCourseTitle = async (courseTitle, companyName, fullName) => {
+  try {
+    if (!companyName || !fullName || !courseTitle) {
+      return false;
+    }
+    
+    const q = query(
+      bookingsCollection,
+      where('courseTitle', '==', courseTitle),
+      where('companyName', '==', companyName.trim()),
+      where('fullName', '==', fullName.trim())
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('講座名ベース申し込み確認エラー:', error);
+    console.error('エラー詳細:', {
+      code: error.code,
+      message: error.message,
+      courseTitle,
+      companyName: companyName?.trim(),
+      fullName: fullName?.trim()
+    });
+    
+    // エラーが発生した場合は安全側に倒して false を返す
     return false;
   }
 };
@@ -257,11 +318,283 @@ export const getBookingsBySchedule = async (courseId, scheduleId) => {
   }
 };
 
+// キャンセルログを記録する関数
+export const createCancelLog = async (bookingData, cancelReason = '利用者によるキャンセル') => {
+  try {
+    const cancelLogData = {
+      // 元の申し込み情報
+      originalBookingId: bookingData.id,
+      courseId: bookingData.courseId,
+      courseTitle: bookingData.courseTitle,
+      scheduleId: bookingData.scheduleId,
+      scheduleDateTime: bookingData.scheduleDateTime,
+      companyName: bookingData.companyName,
+      fullName: bookingData.fullName,
+      needsPcRental: bookingData.needsPcRental,
+      originalCreatedAt: bookingData.createdAt,
+      
+      // キャンセル情報
+      cancelReason,
+      canceledAt: serverTimestamp(),
+      cancelMethod: 'user_interface', // 'user_interface', 'admin_panel', 'system'
+      
+      // システム情報
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Unknown',
+      ipAddress: 'N/A', // フロントエンドでは取得困難
+      sessionInfo: {
+        timestamp: new Date().toISOString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
+    };
+
+    const docRef = await addDoc(cancelLogsCollection, cancelLogData);
+    
+    // 詳細なコンソールログ
+    console.log('=== 申し込みキャンセルログ ===');
+    console.log('ログID:', docRef.id);
+    console.log('申し込みID:', bookingData.id);
+    console.log('講座:', bookingData.courseTitle);
+    console.log('開催日時:', dayjs(bookingData.scheduleDateTime.toDate()).format('YYYY/MM/DD HH:mm'));
+    console.log('キャンセル者:', `${bookingData.companyName} ${bookingData.fullName}`);
+    console.log('PC貸出:', bookingData.needsPcRental ? '希望していた' : '持参予定だった');
+    console.log('キャンセル理由:', cancelReason);
+    console.log('キャンセル日時:', new Date().toLocaleString('ja-JP'));
+    console.log('==========================');
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('キャンセルログ記録エラー:', error);
+    // ログ記録に失敗してもキャンセル処理は続行
+    return null;
+  }
+};
+
+// 申し込みのキャンセル（削除）- ログ記録付き
+export const cancelBooking = async (bookingId, cancelReason = '利用者によるキャンセル') => {
+  try {
+    const bookingRef = doc(db, 'bookings', bookingId);
+    
+    // 申し込みが存在するかチェック
+    const bookingDoc = await getDoc(bookingRef);
+    if (!bookingDoc.exists()) {
+      throw new Error('申し込みが見つかりません');
+    }
+    
+    const bookingData = { id: bookingDoc.id, ...bookingDoc.data() };
+    
+    // キャンセルログを記録（エラーが発生してもキャンセル処理は続行）
+    try {
+      await createCancelLog(bookingData, cancelReason);
+    } catch (logError) {
+      console.error('ログ記録は失敗しましたが、キャンセル処理を続行します:', logError);
+    }
+    
+    // 申し込みを削除
+    await deleteDoc(bookingRef);
+    
+    // 詳細なシステムログ
+    console.log('=== システムログ: 申し込み削除完了 ===');
+    console.log('削除された申し込みID:', bookingId);
+    console.log('削除実行時刻:', new Date().toISOString());
+    console.log('削除前の申し込み数更新が必要');
+    console.log('=====================================');
+    
+    return true;
+  } catch (error) {
+    console.error('申し込みキャンセルエラー:', error);
+    console.error('=== システムエラーログ ===');
+    console.error('失敗した申し込みID:', bookingId);
+    console.error('エラー発生時刻:', new Date().toISOString());
+    console.error('エラーコード:', error.code);
+    console.error('エラーメッセージ:', error.message);
+    console.error('=========================');
+    throw error;
+  }
+};
+
+// 特定ユーザーの申し込み一覧を取得（完全一致）
+export const getUserBookings = async (companyName, fullName) => {
+  try {
+    if (!companyName || !fullName) {
+      return [];
+    }
+    
+    // まず、orderByなしでクエリを実行
+    const q = query(
+      bookingsCollection,
+      where('companyName', '==', companyName.trim()),
+      where('fullName', '==', fullName.trim())
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const bookings = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // クライアント側でソート（createdAtが存在する場合のみ）
+    return bookings.sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return b.createdAt.toDate() - a.createdAt.toDate();
+      }
+      return 0;
+    });
+    
+  } catch (error) {
+    console.error('ユーザー申し込み取得エラー:', error);
+    console.error('エラー詳細:', {
+      code: error.code,
+      message: error.message,
+      companyName: companyName?.trim(),
+      fullName: fullName?.trim()
+    });
+    
+    // エラーが発生した場合、getAllBookingsにフォールバック
+    try {
+      console.log('フォールバック: getAllBookingsを使用');
+      const allBookings = await getAllBookings();
+      return allBookings.filter(booking => 
+        booking.companyName === companyName.trim() &&
+        booking.fullName === fullName.trim()
+      );
+    } catch (fallbackError) {
+      console.error('フォールバック処理も失敗:', fallbackError);
+      throw new Error('申し込み情報の取得に失敗しました。時間をおいて再度お試しください。');
+    }
+  }
+};
+
+// 部分検索で申し込み一覧を取得
+export const searchBookingsByPartialMatch = async (companyName, fullName) => {
+  try {
+    if (!companyName && !fullName) {
+      return [];
+    }
+    
+    // すべての申し込みを取得してクライアント側でフィルタリング
+    const allBookings = await getAllBookings();
+    
+    // 部分一致でフィルタリング
+    const filteredBookings = allBookings.filter(booking => {
+      const companyMatch = !companyName || 
+        booking.companyName.toLowerCase().includes(companyName.toLowerCase().trim());
+      const nameMatch = !fullName || 
+        booking.fullName.toLowerCase().includes(fullName.toLowerCase().trim());
+      
+      return companyMatch && nameMatch;
+    });
+    
+    // 会社名と氏名でグループ化
+    const groupedBookings = {};
+    filteredBookings.forEach(booking => {
+      const key = `${booking.companyName}|${booking.fullName}`;
+      if (!groupedBookings[key]) {
+        groupedBookings[key] = {
+          companyName: booking.companyName,
+          fullName: booking.fullName,
+          bookings: []
+        };
+      }
+      groupedBookings[key].bookings.push(booking);
+    });
+    
+    // 配列に変換してソート
+    return Object.values(groupedBookings).sort((a, b) => {
+      // 会社名でソート、同じ会社名なら氏名でソート
+      const companyCompare = a.companyName.localeCompare(b.companyName, 'ja');
+      if (companyCompare !== 0) return companyCompare;
+      return a.fullName.localeCompare(b.fullName, 'ja');
+    });
+    
+  } catch (error) {
+    console.error('部分検索エラー:', error);
+    throw new Error('検索に失敗しました。時間をおいて再度お試しください。');
+  }
+};
+
+// キャンセルログ一覧を取得
+export const getCancelLogs = async () => {
+  try {
+    const q = query(cancelLogsCollection, orderBy('canceledAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('キャンセルログ取得エラー:', error);
+    throw error;
+  }
+};
+
+// 特定期間のキャンセルログを取得
+export const getCancelLogsByDateRange = async (startDate, endDate) => {
+  try {
+    const q = query(
+      cancelLogsCollection,
+      where('canceledAt', '>=', startDate),
+      where('canceledAt', '<=', endDate),
+      orderBy('canceledAt', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('期間指定キャンセルログ取得エラー:', error);
+    throw error;
+  }
+};
+
+// キャンセル統計情報を取得
+export const getCancelStatistics = async () => {
+  try {
+    const cancelLogs = await getCancelLogs();
+    
+    // 今日のキャンセル数
+    const today = dayjs().startOf('day');
+    const todayCancels = cancelLogs.filter(log => 
+      dayjs(log.canceledAt.toDate()).isSame(today, 'day')
+    );
+    
+    // 今週のキャンセル数
+    const thisWeek = dayjs().startOf('week');
+    const weekCancels = cancelLogs.filter(log => 
+      dayjs(log.canceledAt.toDate()).isAfter(thisWeek)
+    );
+    
+    // 今月のキャンセル数
+    const thisMonth = dayjs().startOf('month');
+    const monthCancels = cancelLogs.filter(log => 
+      dayjs(log.canceledAt.toDate()).isAfter(thisMonth)
+    );
+    
+    return {
+      totalCancels: cancelLogs.length,
+      todayCancels: todayCancels.length,
+      weekCancels: weekCancels.length,
+      monthCancels: monthCancels.length,
+      recentCancels: cancelLogs.slice(0, 10) // 最新10件
+    };
+  } catch (error) {
+    console.error('キャンセル統計取得エラー:', error);
+    throw error;
+  }
+};
+
 // 申し込み統計情報を取得
 export const getBookingStatistics = async () => {
   try {
     const bookings = await getAllBookings();
     const courses = await getCourses();
+    
+    // ユニークな申込者数を計算（会社名+氏名の組み合わせ）
+    const uniqueApplicants = new Set();
+    bookings.forEach(booking => {
+      const applicantKey = `${booking.companyName}|${booking.fullName}`;
+      uniqueApplicants.add(applicantKey);
+    });
     
     // 講座別統計
     const courseStats = courses.map(course => {
@@ -269,18 +602,35 @@ export const getBookingStatistics = async () => {
       const totalBookings = courseBookings.length;
       const pcRentals = courseBookings.filter(booking => booking.needsPcRental).length;
       
+      // 講座別のユニークな申込者数
+      const courseApplicants = new Set();
+      courseBookings.forEach(booking => {
+        const applicantKey = `${booking.companyName}|${booking.fullName}`;
+        courseApplicants.add(applicantKey);
+      });
+      
       return {
         courseId: course.id,
         courseTitle: course.title,
         totalBookings,
+        uniqueApplicants: courseApplicants.size,
         pcRentals,
         scheduleStats: course.schedules?.map(schedule => {
           const scheduleBookings = courseBookings.filter(booking => booking.scheduleId === schedule.id);
+          
+          // スケジュール別のユニークな申込者数
+          const scheduleApplicants = new Set();
+          scheduleBookings.forEach(booking => {
+            const applicantKey = `${booking.companyName}|${booking.fullName}`;
+            scheduleApplicants.add(applicantKey);
+          });
+          
           return {
             scheduleId: schedule.id,
             dateTime: schedule.dateTime,
             capacity: schedule.capacity,
             bookings: scheduleBookings.length,
+            uniqueApplicants: scheduleApplicants.size,
             pcRentals: scheduleBookings.filter(booking => booking.needsPcRental).length,
             remainingSlots: schedule.capacity - scheduleBookings.length
           };
@@ -290,6 +640,7 @@ export const getBookingStatistics = async () => {
 
     return {
       totalBookings: bookings.length,
+      totalApplicants: uniqueApplicants.size,
       totalPcRentals: bookings.filter(booking => booking.needsPcRental).length,
       courseStats,
       recentBookings: bookings.slice(0, 10) // 最新10件

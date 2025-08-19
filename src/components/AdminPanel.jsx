@@ -50,7 +50,7 @@ import Login from './Login';
 import BookingDashboard from './BookingDashboard';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from 'dayjs';
-import { getCourses, createCourse, updateCourse, getBookingsCount } from '../utils/firestore';
+import { getCourses, createCourse, updateCourse, getBookingsCount, getCancelLogs, getCancelStatistics } from '../utils/firestore';
 
 const AdminPanel = () => {
   const { currentUser } = useAuth();
@@ -61,6 +61,8 @@ const AdminPanel = () => {
   const [editingCourse, setEditingCourse] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [tabValue, setTabValue] = useState(0);
+  const [cancelLogs, setCancelLogs] = useState([]);
+  const [cancelStats, setCancelStats] = useState(null);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm({
     defaultValues: {
@@ -83,6 +85,12 @@ const AdminPanel = () => {
   useEffect(() => {
     fetchCourses();
   }, []);
+
+  useEffect(() => {
+    if (tabValue === 2) { // キャンセルログタブが選択された時
+      fetchCancelLogs();
+    }
+  }, [tabValue]);
 
   const fetchCourses = async () => {
     try {
@@ -199,6 +207,23 @@ const AdminPanel = () => {
     });
   };
 
+  const fetchCancelLogs = async () => {
+    try {
+      setLoading(true);
+      const [logsData, statsData] = await Promise.all([
+        getCancelLogs(),
+        getCancelStatistics()
+      ]);
+      setCancelLogs(logsData);
+      setCancelStats(statsData);
+    } catch (err) {
+      setError('キャンセルログの取得に失敗しました');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOutUser();
@@ -260,10 +285,172 @@ const AdminPanel = () => {
           label="講座管理" 
           iconPosition="start"
         />
+        <Tab 
+          icon={<Cancel />} 
+          label="キャンセルログ" 
+          iconPosition="start"
+        />
       </Tabs>
 
       {/* 申込者管理タブ */}
       {tabValue === 0 && <BookingDashboard />}
+
+      {/* キャンセルログタブ */}
+      {tabValue === 2 && (
+        <>
+          {cancelStats && (
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary">
+                      総キャンセル数
+                    </Typography>
+                    <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
+                      {cancelStats.totalCancels}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary">
+                      今日のキャンセル
+                    </Typography>
+                    <Typography variant="h4" color="warning.main" sx={{ fontWeight: 'bold' }}>
+                      {cancelStats.todayCancels}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary">
+                      今週のキャンセル
+                    </Typography>
+                    <Typography variant="h4" color="info.main" sx={{ fontWeight: 'bold' }}>
+                      {cancelStats.weekCancels}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Card>
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h6" color="text.secondary">
+                      今月のキャンセル
+                    </Typography>
+                    <Typography variant="h4" color="secondary.main" sx={{ fontWeight: 'bold' }}>
+                      {cancelStats.monthCancels}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+          )}
+
+          <Card>
+            <CardContent>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Typography variant="h6">
+                  キャンセルログ一覧 ({cancelLogs.length}件)
+                </Typography>
+                <Button
+                  variant="outlined"
+                  onClick={fetchCancelLogs}
+                  disabled={loading}
+                >
+                  更新
+                </Button>
+              </Box>
+
+              {loading ? (
+                <Box textAlign="center" py={4}>
+                  <Typography>読み込み中...</Typography>
+                </Box>
+              ) : cancelLogs.length === 0 ? (
+                <Box textAlign="center" py={4}>
+                  <Typography color="text.secondary">
+                    キャンセルログがありません
+                  </Typography>
+                </Box>
+              ) : (
+                <TableContainer component={Paper} variant="outlined">
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>キャンセル日時</TableCell>
+                        <TableCell>講座名</TableCell>
+                        <TableCell>開催予定日時</TableCell>
+                        <TableCell>キャンセル者</TableCell>
+                        <TableCell>PC貸出</TableCell>
+                        <TableCell>キャンセル理由</TableCell>
+                        <TableCell>方法</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {cancelLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell>
+                            {formatDateTime(log.canceledAt)}
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              {log.courseTitle}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            {formatDateTime(log.scheduleDateTime)}
+                          </TableCell>
+                          <TableCell>
+                            <Box>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                {log.fullName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {log.companyName}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={log.needsPcRental ? 'PC貸出' : 'PC持参'}
+                              color={log.needsPcRental ? 'primary' : 'default'}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Typography variant="body2">
+                              {log.cancelReason}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={
+                                log.cancelMethod === 'user_interface' ? 'ユーザー操作' :
+                                log.cancelMethod === 'admin_panel' ? '管理者操作' : 'システム'
+                              }
+                              color={
+                                log.cancelMethod === 'user_interface' ? 'info' :
+                                log.cancelMethod === 'admin_panel' ? 'warning' : 'default'
+                              }
+                              variant="outlined"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* 講座管理タブ */}
       {tabValue === 1 && (

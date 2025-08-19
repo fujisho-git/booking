@@ -1,13 +1,14 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { Box, AppBar, Toolbar, Typography } from '@mui/material';
+import { Box, AppBar, Toolbar, Typography, Button } from '@mui/material';
 import CourseList from './components/CourseList';
 import BookingForm from './components/BookingForm';
 import AdminPanel from './components/AdminPanel';
+import MyBookings from './components/MyBookings';
 import { AuthProvider } from './contexts/AuthContext';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
@@ -43,6 +44,31 @@ const theme = createTheme({
   },
 });
 
+// ナビゲーションボタンコンポーネント
+const NavigationButtons = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  return (
+    <Box sx={{ display: 'flex', gap: 1 }}>
+      <Button 
+        color="inherit" 
+        onClick={() => navigate('/')}
+        variant={location.pathname === '/' ? 'outlined' : 'text'}
+      >
+        講座一覧
+      </Button>
+      <Button 
+        color="inherit" 
+        onClick={() => navigate('/my-bookings')}
+        variant={location.pathname === '/my-bookings' ? 'outlined' : 'text'}
+      >
+        マイページ
+      </Button>
+    </Box>
+  );
+};
+
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -56,6 +82,7 @@ function App() {
                 <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                   研修スケジュール管理システム
                 </Typography>
+                <NavigationButtons />
               </Toolbar>
             </AppBar>
             
@@ -68,6 +95,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<CourseList />} />
                 <Route path="/booking/:courseId" element={<BookingForm />} />
+                <Route path="/my-bookings" element={<MyBookings />} />
                 <Route path="/admin" element={<AdminPanel />} />
               </Routes>
             </Box>

@@ -27,7 +27,7 @@ import {
   ArrowBack
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
-import { getCourse, createBooking, getBookingsCount, checkUserBookingExists } from '../utils/firestore';
+import { getCourse, createBooking, getBookingsCount, checkUserBookingExistsByCourseTitle } from '../utils/firestore';
 
 const BookingForm = () => {
   const { courseId } = useParams();
@@ -76,14 +76,15 @@ const BookingForm = () => {
   }, [reset]);
 
   useEffect(() => {
-    // ユーザー情報が入力された際に申し込み済みかチェック
+    // ユーザー情報が入力された際に申し込み済みかチェック（講座名ベース）
     const checkBookingStatus = async () => {
       if (watchedCompanyName && watchedFullName && course) {
-        const hasBooking = await checkUserBookingExists(
-          courseId, 
+        const hasBooking = await checkUserBookingExistsByCourseTitle(
+          course.title, 
           watchedCompanyName, 
           watchedFullName
         );
+        console.log(`講座名「${course.title}」での申し込み確認:`, hasBooking ? '申し込み済み' : '申し込み可能');
         setAlreadyBooked(hasBooking);
       } else {
         setAlreadyBooked(false);
@@ -91,7 +92,7 @@ const BookingForm = () => {
     };
 
     checkBookingStatus();
-  }, [watchedCompanyName, watchedFullName, courseId, course]);
+  }, [watchedCompanyName, watchedFullName, course]);
 
   const fetchCourse = async () => {
     try {
@@ -163,9 +164,9 @@ const BookingForm = () => {
       setSuccess(true);
       reset();
       
-      // 3秒後に講座一覧に戻る
+      // 3秒後にマイページに移動する
       setTimeout(() => {
-        navigate('/');
+        navigate('/my-bookings');
       }, 3000);
 
     } catch (err) {
@@ -211,7 +212,7 @@ const BookingForm = () => {
         <Typography variant="body1">
           申し込みありがとうございました。
           <br />
-          3秒後に講座一覧に戻ります...
+          3秒後にマイページに移動します...
         </Typography>
       </Paper>
     );
@@ -251,7 +252,7 @@ const BookingForm = () => {
               <form onSubmit={handleSubmit(onSubmit)}>
                 {alreadyBooked && (
                   <Alert severity="warning" sx={{ mb: 3 }}>
-                    この講座には既に申し込み済みです。一つの講座につき一人一回までの申し込みとなります。
+                    この講座名「{course.title}」には既に申し込み済みです。同じ講座名での重複申し込みはできません。
                   </Alert>
                 )}
 

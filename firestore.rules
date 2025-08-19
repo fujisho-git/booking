@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 講座（courses）コレクション
+    match /courses/{courseId} {
+      // 読み取りは誰でも可能（講座一覧を見るため）
+      allow read: if true;
+      
+      // 作成・更新・削除は認証済みユーザーのみ（管理者用）
+      allow create, update, delete: if request.auth != null;
+    }
+    
+    // 申し込み（bookings）コレクション
+    match /bookings/{bookingId} {
+      // 読み取り権限：
+      // - 管理者: 全件閲覧可能
+      // - 一般ユーザー: 申し込み機能に必要な操作のみ許可
+      allow read: if (
+        // 管理者の場合は全件アクセス可能
+        (request.auth != null) ||
+        // 認証なしでも申し込み関連の機能は許可（重複チェック、定員確認など）
+        true
+      );
+      
+      // 作成は誰でも可能（新規申し込みのため）
+      allow create: if isValidBookingData(request.resource.data);
+      
+      // 更新は禁止（データの整合性を保つため）
+      allow update: if false;
+      
+      // 削除は誰でも可能（一般ユーザーのキャンセル機能のため）
+      // 注意: 本来はより厳密な制御が望ましいが、現在のアプリ設計では認証なしでキャンセル機能を提供
+      allow delete: if true;
+    }
+    
+    // キャンセルログ（cancelLogs）コレクション
+    match /cancelLogs/{logId} {
+      // 読み取りは認証済みユーザーのみ（管理者用）
+      allow read: if request.auth != null;
+      
+      // 作成は誰でも可能（キャンセル時のログ記録のため）
+      allow create: if true;
+      
+      // 更新・削除は禁止（ログの整合性を保つため）
+      allow update, delete: if false;
+    }
+    
+    // バリデーション関数
+    function isValidBookingData(data) {
+      return data.keys().hasAll([
+        'courseId',
+        'courseTitle', 
+        'scheduleId',
+        'scheduleDateTime',
+        'companyName',
+        'fullName',
+        'needsPcRental'
+      ]) &&
+      data.courseId is string &&
+      data.courseTitle is string &&
+      data.scheduleId is string &&
+      data.companyName is string &&
+      data.fullName is string &&
+      data.needsPcRental is bool;
+    }
+  }
+}

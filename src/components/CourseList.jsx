@@ -141,6 +141,21 @@ const CourseList = () => {
 
   return (
     <Box sx={{ mt: { xs: 4, md: 8 } }}>
+      {/* ヘルプテキストとマイページリンク */}
+      {userInfo.companyName && userInfo.fullName && (
+        <Alert severity="info" sx={{ mb: 4, textAlign: 'center' }}>
+          {userInfo.companyName} {userInfo.fullName}さん、こんにちは！
+          <Button 
+            variant="outlined" 
+            size="small" 
+            onClick={() => navigate('/my-bookings')}
+            sx={{ ml: 2 }}
+          >
+            マイページで申し込み状況を確認
+          </Button>
+        </Alert>
+      )}
+      
       {/* <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ mb: 4 }}>
         研修一覧
       </Typography> */}
