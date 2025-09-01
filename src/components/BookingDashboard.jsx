@@ -29,7 +29,7 @@ import {
   List,
   ListItem,
   ListItemText,
-  Divider
+  Divider,
 } from '@mui/material';
 import {
   Download,
@@ -40,34 +40,32 @@ import {
   Event,
   ExpandMore,
   Schedule,
-  Group
+  Group,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import Papa from 'papaparse';
-import { 
-  getAllBookings, 
-  getBookingStatistics, 
+import {
+  getAllBookings,
+  getBookingStatistics,
   getCourses,
-  getBookingsByCourse,
-  getBookingsBySchedule 
 } from '../utils/firestore';
 
 const BookingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
-  
+
   // 統計データ
   const [statistics, setStatistics] = useState(null);
-  
+
   // 申し込み一覧データ
   const [allBookings, setAllBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
   const [courses, setCourses] = useState([]);
-  
+
   // 研修日時ごとのデータ
   const [scheduleDetails, setScheduleDetails] = useState([]);
-  
+
   // フィルター条件
   const [filters, setFilters] = useState({
     courseId: '',
@@ -76,7 +74,7 @@ const BookingDashboard = () => {
     fullName: '',
     needsPcRental: '',
     dateFrom: '',
-    dateTo: ''
+    dateTo: '',
   });
 
   useEffect(() => {
@@ -95,17 +93,17 @@ const BookingDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const [bookingsData, statisticsData, coursesData] = await Promise.all([
         getAllBookings(),
         getBookingStatistics(),
-        getCourses()
+        getCourses(),
       ]);
-      
+
       setAllBookings(bookingsData);
       setStatistics(statisticsData);
       setCourses(coursesData);
-      
+
       // デバッグログ
       console.log('統計データ:', statisticsData);
       console.log('totalApplicants:', statisticsData?.totalApplicants);
@@ -116,7 +114,7 @@ const BookingDashboard = () => {
       console.error('エラー詳細:', {
         name: err.name,
         message: err.message,
-        stack: err.stack
+        stack: err.stack,
       });
     } finally {
       setLoading(false);
@@ -137,10 +135,10 @@ const BookingDashboard = () => {
           scheduleDateTime: booking.scheduleDateTime,
           bookings: [],
           participantCount: 0,
-          pcRentalCount: 0
+          pcRentalCount: 0,
         });
       }
-      
+
       const scheduleData = scheduleMap.get(key);
       scheduleData.bookings.push(booking);
       scheduleData.participantCount += 1;
@@ -151,7 +149,9 @@ const BookingDashboard = () => {
 
     // 日時順でソート
     const sortedSchedules = Array.from(scheduleMap.values()).sort((a, b) => {
-      return dayjs(a.scheduleDateTime.toDate()).diff(dayjs(b.scheduleDateTime.toDate()));
+      return dayjs(a.scheduleDateTime.toDate()).diff(
+        dayjs(b.scheduleDateTime.toDate())
+      );
     });
 
     setScheduleDetails(sortedSchedules);
@@ -162,24 +162,30 @@ const BookingDashboard = () => {
 
     // 講座でフィルター
     if (filters.courseId) {
-      filtered = filtered.filter(booking => booking.courseId === filters.courseId);
+      filtered = filtered.filter(
+        booking => booking.courseId === filters.courseId
+      );
     }
 
     // スケジュールでフィルター
     if (filters.scheduleId) {
-      filtered = filtered.filter(booking => booking.scheduleId === filters.scheduleId);
+      filtered = filtered.filter(
+        booking => booking.scheduleId === filters.scheduleId
+      );
     }
 
     // 会社名でフィルター
     if (filters.companyName) {
-      filtered = filtered.filter(booking => 
-        booking.companyName.toLowerCase().includes(filters.companyName.toLowerCase())
+      filtered = filtered.filter(booking =>
+        booking.companyName
+          .toLowerCase()
+          .includes(filters.companyName.toLowerCase())
       );
     }
 
     // 名前でフィルター
     if (filters.fullName) {
-      filtered = filtered.filter(booking => 
+      filtered = filtered.filter(booking =>
         booking.fullName.toLowerCase().includes(filters.fullName.toLowerCase())
       );
     }
@@ -192,14 +198,16 @@ const BookingDashboard = () => {
 
     // 申し込み日でフィルター
     if (filters.dateFrom) {
-      filtered = filtered.filter(booking => 
+      filtered = filtered.filter(booking =>
         dayjs(booking.createdAt.toDate()).isAfter(dayjs(filters.dateFrom))
       );
     }
 
     if (filters.dateTo) {
-      filtered = filtered.filter(booking => 
-        dayjs(booking.createdAt.toDate()).isBefore(dayjs(filters.dateTo).add(1, 'day'))
+      filtered = filtered.filter(booking =>
+        dayjs(booking.createdAt.toDate()).isBefore(
+          dayjs(filters.dateTo).add(1, 'day')
+        )
       );
     }
 
@@ -211,7 +219,7 @@ const BookingDashboard = () => {
       ...prev,
       [field]: value,
       // 講座が変更された場合はスケジュールをリセット
-      ...(field === 'courseId' && { scheduleId: '' })
+      ...(field === 'courseId' && { scheduleId: '' }),
     }));
   };
 
@@ -224,12 +232,12 @@ const BookingDashboard = () => {
           allSchedules.push({
             ...schedule,
             courseId: course.id,
-            courseTitle: course.title
+            courseTitle: course.title,
           });
         });
       });
       // 日時順でソート
-      return allSchedules.sort((a, b) => 
+      return allSchedules.sort((a, b) =>
         dayjs(a.dateTime.toDate()).diff(dayjs(b.dateTime.toDate()))
       );
     }
@@ -239,24 +247,33 @@ const BookingDashboard = () => {
 
   const exportToCSV = () => {
     const csvData = filteredBookings.map(booking => ({
-      '申し込み日時': dayjs(booking.createdAt.toDate()).format('YYYY/MM/DD HH:mm'),
-      '講座名': booking.courseTitle,
-      '開催日時': dayjs(booking.scheduleDateTime.toDate()).format('YYYY/MM/DD HH:mm'),
-      '会社名': booking.companyName,
-      '氏名': booking.fullName,
-      'PC貸出': booking.needsPcRental ? '希望' : '持参',
-      '申し込みID': booking.id
+      申し込み日時: dayjs(booking.createdAt.toDate()).format(
+        'YYYY/MM/DD HH:mm'
+      ),
+      講座名: booking.courseTitle,
+      開催日時: dayjs(booking.scheduleDateTime.toDate()).format(
+        'YYYY/MM/DD HH:mm'
+      ),
+      会社名: booking.companyName,
+      氏名: booking.fullName,
+      PC貸出: booking.needsPcRental ? '希望' : '持参',
+      申し込みID: booking.id,
     }));
 
     const csv = Papa.unparse(csvData, {
-      header: true
+      header: true,
     });
 
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `申し込み一覧_${dayjs().format('YYYYMMDD_HHmm')}.csv`);
+    link.setAttribute(
+      'download',
+      `申し込み一覧_${dayjs().format('YYYYMMDD_HHmm')}.csv`
+    );
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -265,37 +282,46 @@ const BookingDashboard = () => {
 
   const exportScheduleDetailsToCSV = () => {
     const csvData = [];
-    
+
     scheduleDetails.forEach(schedule => {
       schedule.bookings.forEach((booking, index) => {
         csvData.push({
-          '講座名': schedule.courseTitle,
-          '開催日時': dayjs(schedule.scheduleDateTime.toDate()).format('YYYY/MM/DD HH:mm'),
-          '参加者番号': index + 1,
-          '会社名': booking.companyName,
-          '氏名': booking.fullName,
-          'PC貸出': booking.needsPcRental ? '希望' : '持参',
-          '申し込み日時': dayjs(booking.createdAt.toDate()).format('YYYY/MM/DD HH:mm')
+          講座名: schedule.courseTitle,
+          開催日時: dayjs(schedule.scheduleDateTime.toDate()).format(
+            'YYYY/MM/DD HH:mm'
+          ),
+          参加者番号: index + 1,
+          会社名: booking.companyName,
+          氏名: booking.fullName,
+          PC貸出: booking.needsPcRental ? '希望' : '持参',
+          申し込み日時: dayjs(booking.createdAt.toDate()).format(
+            'YYYY/MM/DD HH:mm'
+          ),
         });
       });
     });
 
     const csv = Papa.unparse(csvData, {
-      header: true
+      header: true,
     });
 
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(['\uFEFF' + csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `研修日時別参加者一覧_${dayjs().format('YYYYMMDD_HHmm')}.csv`);
+    link.setAttribute(
+      'download',
+      `研修日時別参加者一覧_${dayjs().format('YYYYMMDD_HHmm')}.csv`
+    );
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const formatDateTime = (timestamp) => {
+  const formatDateTime = timestamp => {
     return dayjs(timestamp.toDate()).format('YYYY/MM/DD HH:mm');
   };
 
@@ -307,312 +333,531 @@ const BookingDashboard = () => {
       fullName: '',
       needsPcRental: '',
       dateFrom: '',
-      dateTo: ''
+      dateTo: '',
     });
   };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display='flex'
+        justifyContent='center'
+        alignItems='center'
+        minHeight='400px'
+      >
         <CircularProgress />
       </Box>
     );
   }
 
   if (error) {
-    return <Alert severity="error">{error}</Alert>;
+    return <Alert severity='error'>{error}</Alert>;
   }
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
+      <Box
+        display='flex'
+        justifyContent='space-between'
+        alignItems='center'
+        mb={3}
+      >
+        <Typography variant='h4' component='h1'>
           申込者管理ダッシュボード
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<Refresh />}
-          onClick={fetchData}
-        >
+        <Button variant='outlined' startIcon={<Refresh />} onClick={fetchData}>
           更新
         </Button>
       </Box>
 
-      <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
-        <Tab label="統計情報" />
-        <Tab label="申込者一覧" />
-        <Tab label="研修日時別詳細" />
+      <Tabs
+        value={tabValue}
+        onChange={(e, newValue) => setTabValue(newValue)}
+        sx={{ mb: 3 }}
+      >
+        <Tab label='統計情報' />
+        <Tab label='申込者一覧' />
+        <Tab label='研修日時別詳細' />
       </Tabs>
 
       {/* 統計情報タブ */}
       {tabValue === 0 && (
         <>
           {!statistics ? (
-            <Box textAlign="center" py={4}>
-              <Alert severity="warning">
+            <Box textAlign='center' py={4}>
+              <Alert severity='warning'>
                 統計データを取得できていません。データを再読み込みしてください。
               </Alert>
             </Box>
           ) : (
-        <Box sx={{ maxWidth: '1200px', margin: '0 auto', px: 2 }}>
-          <Grid container spacing={4} justifyContent="center">
-            {/* 全体統計 - 横並びレイアウト */}
-            <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Card sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
-                <CardContent sx={{ py: 4 }}>
-                  <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-                    <People sx={{ mr: 1, color: 'primary.main', fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>
-                    総申し込み数
-                  </Typography>
-                  <Typography variant="h2" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {statistics.totalBookings}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    件
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Card sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
-                <CardContent sx={{ py: 4 }}>
-                  <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-                    <Group sx={{ mr: 1, color: 'info.main', fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>
-                    申込者数
-                  </Typography>
-                  <Typography variant="h2" color="info.main" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {statistics.totalApplicants || 0}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    名
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Card sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
-                <CardContent sx={{ py: 4 }}>
-                  <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-                    <Computer sx={{ mr: 1, color: 'secondary.main', fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>
-                    PC貸出申し込み
-                  </Typography>
-                  <Typography variant="h2" color="secondary" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {statistics.totalPcRentals}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    件
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid item xs={12} sm={6} md={3} sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Card sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}>
-                <CardContent sx={{ py: 4 }}>
-                  <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
-                    <Event sx={{ mr: 1, color: 'success.main', fontSize: 40 }} />
-                  </Box>
-                  <Typography variant="h6" gutterBottom>
-                    開催講座数
-                  </Typography>
-                  <Typography variant="h2" color="success.main" sx={{ fontWeight: 'bold', mb: 1 }}>
-                    {statistics.courseStats.length}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    講座
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            {/* 講座別申込状況と日時別申込状況を横並びに */}
-            <Grid container spacing={4} sx={{ mt: 4 }}>
-              {/* 講座別申込状況 */}
-              <Grid item xs={12} lg={6}>
-                <Typography variant="h5" component="h2" gutterBottom textAlign="center" sx={{ mb: 4 }}>
-                  講座別申し込み状況
-                </Typography>
-                <Card sx={{ height: 'fit-content' }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <TableContainer sx={{ maxHeight: 600, overflowY: 'auto' }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              講座名
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              申込数
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              申込者数
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              PC貸出
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              回数
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {statistics.courseStats.map((courseStat, index) => (
-                            <TableRow 
-                              key={courseStat.courseId}
-                              sx={{ 
-                                '&:nth-of-type(odd)': { backgroundColor: 'action.hover' },
-                                '&:hover': { backgroundColor: 'action.selected' }
-                              }}
-                            >
-                              <TableCell sx={{ py: 2, fontSize: '0.85rem' }}>
-                                {courseStat.courseTitle}
-                              </TableCell>
-                              <TableCell align="center" sx={{ py: 2 }}>
-                                <Typography variant="body1" color="primary" sx={{ fontWeight: 'bold' }}>
-                                  {courseStat.totalBookings}件
-                                </Typography>
-                              </TableCell>
-                              <TableCell align="center" sx={{ py: 2 }}>
-                                <Typography variant="body1" color="info.main" sx={{ fontWeight: 'bold' }}>
-                                  {courseStat.uniqueApplicants || 0}名
-                                </Typography>
-                              </TableCell>
-                              <TableCell align="center" sx={{ py: 2 }}>
-                                <Typography variant="body1" color="secondary" sx={{ fontWeight: 'bold' }}>
-                                  {courseStat.pcRentals}件
-                                </Typography>
-                              </TableCell>
-                              <TableCell align="center" sx={{ py: 2 }}>
-                                <Typography variant="body1" color="success.main" sx={{ fontWeight: 'bold' }}>
-                                  {courseStat.scheduleStats.length}回
-                                </Typography>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                    
-                    {statistics.courseStats.length === 0 && (
-                      <Box textAlign="center" py={4}>
-                        <Typography color="text.secondary" variant="body1">
-                          申し込みのある講座がありません
-                        </Typography>
+            <Box sx={{ maxWidth: '1200px', margin: '0 auto', px: 2 }}>
+              <Grid container spacing={4} justifyContent='center'>
+                {/* 全体統計 - 横並びレイアウト */}
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  md={3}
+                  sx={{ display: 'flex', justifyContent: 'center' }}
+                >
+                  <Card
+                    sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}
+                  >
+                    <CardContent sx={{ py: 4 }}>
+                      <Box
+                        display='flex'
+                        alignItems='center'
+                        justifyContent='center'
+                        mb={3}
+                      >
+                        <People
+                          sx={{ mr: 1, color: 'primary.main', fontSize: 40 }}
+                        />
                       </Box>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
+                      <Typography variant='h6' gutterBottom>
+                        総申し込み数
+                      </Typography>
+                      <Typography
+                        variant='h2'
+                        color='primary'
+                        sx={{ fontWeight: 'bold', mb: 1 }}
+                      >
+                        {statistics.totalBookings}
+                      </Typography>
+                      <Typography variant='body2' color='text.secondary'>
+                        件
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
 
-              {/* 日時別申込状況 */}
-              <Grid item xs={12} lg={6}>
-                <Typography variant="h5" component="h2" gutterBottom textAlign="center" sx={{ mb: 4 }}>
-                  日時別申し込み状況
-                </Typography>
-                <Card sx={{ height: 'fit-content' }}>
-                  <CardContent sx={{ p: 3 }}>
-                    <TableContainer sx={{ maxHeight: 600, overflowY: 'auto' }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              開催日時
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              講座名
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              申込/定員
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              PC貸出
-                            </TableCell>
-                            <TableCell align="center" sx={{ fontWeight: 'bold', fontSize: '0.9rem', py: 1.5 }}>
-                              状況
-                            </TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {scheduleDetails.map((schedule, index) => {
-                            // 定員情報を取得（coursesからスケジュールの定員を探す）
-                            const course = courses.find(c => c.id === schedule.courseId);
-                            const scheduleInfo = course?.schedules?.find(s => s.id === schedule.scheduleId);
-                            const capacity = scheduleInfo?.capacity || 0;
-                            const remainingSlots = capacity - schedule.participantCount;
-                            const isFullyBooked = remainingSlots <= 0;
-                            
-                            return (
-                              <TableRow 
-                                key={`${schedule.courseId}-${schedule.scheduleId}`}
-                                sx={{ 
-                                  '&:nth-of-type(odd)': { backgroundColor: 'action.hover' },
-                                  '&:hover': { backgroundColor: 'action.selected' }
-                                }}
-                              >
-                                <TableCell sx={{ py: 2, fontSize: '0.85rem' }}>
-                                  {dayjs(schedule.scheduleDateTime.toDate()).format('MM/DD HH:mm')}
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  md={3}
+                  sx={{ display: 'flex', justifyContent: 'center' }}
+                >
+                  <Card
+                    sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}
+                  >
+                    <CardContent sx={{ py: 4 }}>
+                      <Box
+                        display='flex'
+                        alignItems='center'
+                        justifyContent='center'
+                        mb={3}
+                      >
+                        <Group
+                          sx={{ mr: 1, color: 'info.main', fontSize: 40 }}
+                        />
+                      </Box>
+                      <Typography variant='h6' gutterBottom>
+                        申込者数
+                      </Typography>
+                      <Typography
+                        variant='h2'
+                        color='info.main'
+                        sx={{ fontWeight: 'bold', mb: 1 }}
+                      >
+                        {statistics.totalApplicants || 0}
+                      </Typography>
+                      <Typography variant='body2' color='text.secondary'>
+                        名
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  md={3}
+                  sx={{ display: 'flex', justifyContent: 'center' }}
+                >
+                  <Card
+                    sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}
+                  >
+                    <CardContent sx={{ py: 4 }}>
+                      <Box
+                        display='flex'
+                        alignItems='center'
+                        justifyContent='center'
+                        mb={3}
+                      >
+                        <Computer
+                          sx={{ mr: 1, color: 'secondary.main', fontSize: 40 }}
+                        />
+                      </Box>
+                      <Typography variant='h6' gutterBottom>
+                        PC貸出申し込み
+                      </Typography>
+                      <Typography
+                        variant='h2'
+                        color='secondary'
+                        sx={{ fontWeight: 'bold', mb: 1 }}
+                      >
+                        {statistics.totalPcRentals}
+                      </Typography>
+                      <Typography variant='body2' color='text.secondary'>
+                        件
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                <Grid
+                  item
+                  xs={12}
+                  sm={6}
+                  md={3}
+                  sx={{ display: 'flex', justifyContent: 'center' }}
+                >
+                  <Card
+                    sx={{ width: '100%', maxWidth: 300, textAlign: 'center' }}
+                  >
+                    <CardContent sx={{ py: 4 }}>
+                      <Box
+                        display='flex'
+                        alignItems='center'
+                        justifyContent='center'
+                        mb={3}
+                      >
+                        <Event
+                          sx={{ mr: 1, color: 'success.main', fontSize: 40 }}
+                        />
+                      </Box>
+                      <Typography variant='h6' gutterBottom>
+                        開催講座数
+                      </Typography>
+                      <Typography
+                        variant='h2'
+                        color='success.main'
+                        sx={{ fontWeight: 'bold', mb: 1 }}
+                      >
+                        {statistics.courseStats.length}
+                      </Typography>
+                      <Typography variant='body2' color='text.secondary'>
+                        講座
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* 講座別申込状況と日時別申込状況を横並びに */}
+                <Grid container spacing={4} sx={{ mt: 4 }}>
+                  {/* 講座別申込状況 */}
+                  <Grid item xs={12} lg={6}>
+                    <Typography
+                      variant='h5'
+                      component='h2'
+                      gutterBottom
+                      textAlign='center'
+                      sx={{ mb: 4 }}
+                    >
+                      講座別申し込み状況
+                    </Typography>
+                    <Card sx={{ height: 'fit-content' }}>
+                      <CardContent sx={{ p: 3 }}>
+                        <TableContainer
+                          sx={{ maxHeight: 600, overflowY: 'auto' }}
+                        >
+                          <Table size='small'>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  講座名
                                 </TableCell>
-                                <TableCell sx={{ py: 2, fontSize: '0.85rem' }}>
-                                  {schedule.courseTitle.length > 15 
-                                    ? `${schedule.courseTitle.substring(0, 15)}...`
-                                    : schedule.courseTitle
-                                  }
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  申込数
                                 </TableCell>
-                                <TableCell align="center" sx={{ py: 2 }}>
-                                  <Typography variant="body1" color="primary" sx={{ fontWeight: 'bold' }}>
-                                    {schedule.participantCount}/{capacity}
-                                  </Typography>
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  申込者数
                                 </TableCell>
-                                <TableCell align="center" sx={{ py: 2 }}>
-                                  <Typography variant="body1" color="secondary" sx={{ fontWeight: 'bold' }}>
-                                    {schedule.pcRentalCount}
-                                  </Typography>
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  PC貸出
                                 </TableCell>
-                                <TableCell align="center" sx={{ py: 2 }}>
-                                  {isFullyBooked ? (
-                                    <Chip 
-                                      label="満席" 
-                                      color="error" 
-                                      size="small"
-                                      sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
-                                    />
-                                  ) : (
-                                    <Chip 
-                                      label={`空${remainingSlots}`} 
-                                      color="success" 
-                                      size="small"
-                                      sx={{ fontWeight: 'bold', fontSize: '0.75rem' }}
-                                    />
-                                  )}
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  回数
                                 </TableCell>
                               </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                    
-                    {scheduleDetails.length === 0 && (
-                      <Box textAlign="center" py={4}>
-                        <Typography color="text.secondary" variant="body1">
-                          申し込みのあるスケジュールがありません
-                        </Typography>
-                      </Box>
-                    )}
-                  </CardContent>
-                </Card>
+                            </TableHead>
+                            <TableBody>
+                              {statistics.courseStats.map(courseStat => (
+                                <TableRow
+                                  key={courseStat.courseId}
+                                  sx={{
+                                    '&:nth-of-type(odd)': {
+                                      backgroundColor: 'action.hover',
+                                    },
+                                    '&:hover': {
+                                      backgroundColor: 'action.selected',
+                                    },
+                                  }}
+                                >
+                                  <TableCell
+                                    sx={{ py: 2, fontSize: '0.85rem' }}
+                                  >
+                                    {courseStat.courseTitle}
+                                  </TableCell>
+                                  <TableCell align='center' sx={{ py: 2 }}>
+                                    <Typography
+                                      variant='body1'
+                                      color='primary'
+                                      sx={{ fontWeight: 'bold' }}
+                                    >
+                                      {courseStat.totalBookings}件
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align='center' sx={{ py: 2 }}>
+                                    <Typography
+                                      variant='body1'
+                                      color='info.main'
+                                      sx={{ fontWeight: 'bold' }}
+                                    >
+                                      {courseStat.uniqueApplicants || 0}名
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align='center' sx={{ py: 2 }}>
+                                    <Typography
+                                      variant='body1'
+                                      color='secondary'
+                                      sx={{ fontWeight: 'bold' }}
+                                    >
+                                      {courseStat.pcRentals}件
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell align='center' sx={{ py: 2 }}>
+                                    <Typography
+                                      variant='body1'
+                                      color='success.main'
+                                      sx={{ fontWeight: 'bold' }}
+                                    >
+                                      {courseStat.scheduleStats.length}回
+                                    </Typography>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+
+                        {statistics.courseStats.length === 0 && (
+                          <Box textAlign='center' py={4}>
+                            <Typography color='text.secondary' variant='body1'>
+                              申し込みのある講座がありません
+                            </Typography>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+
+                  {/* 日時別申込状況 */}
+                  <Grid item xs={12} lg={6}>
+                    <Typography
+                      variant='h5'
+                      component='h2'
+                      gutterBottom
+                      textAlign='center'
+                      sx={{ mb: 4 }}
+                    >
+                      日時別申し込み状況
+                    </Typography>
+                    <Card sx={{ height: 'fit-content' }}>
+                      <CardContent sx={{ p: 3 }}>
+                        <TableContainer
+                          sx={{ maxHeight: 600, overflowY: 'auto' }}
+                        >
+                          <Table size='small'>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  開催日時
+                                </TableCell>
+                                <TableCell
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  講座名
+                                </TableCell>
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  申込/定員
+                                </TableCell>
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  PC貸出
+                                </TableCell>
+                                <TableCell
+                                  align='center'
+                                  sx={{
+                                    fontWeight: 'bold',
+                                    fontSize: '0.9rem',
+                                    py: 1.5,
+                                  }}
+                                >
+                                  状況
+                                </TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {scheduleDetails.map(schedule => {
+                                // 定員情報を取得（coursesからスケジュールの定員を探す）
+                                const course = courses.find(
+                                  c => c.id === schedule.courseId
+                                );
+                                const scheduleInfo = course?.schedules?.find(
+                                  s => s.id === schedule.scheduleId
+                                );
+                                const capacity = scheduleInfo?.capacity || 0;
+                                const remainingSlots =
+                                  capacity - schedule.participantCount;
+                                const isFullyBooked = remainingSlots <= 0;
+
+                                return (
+                                  <TableRow
+                                    key={`${schedule.courseId}-${schedule.scheduleId}`}
+                                    sx={{
+                                      '&:nth-of-type(odd)': {
+                                        backgroundColor: 'action.hover',
+                                      },
+                                      '&:hover': {
+                                        backgroundColor: 'action.selected',
+                                      },
+                                    }}
+                                  >
+                                    <TableCell
+                                      sx={{ py: 2, fontSize: '0.85rem' }}
+                                    >
+                                      {dayjs(
+                                        schedule.scheduleDateTime.toDate()
+                                      ).format('MM/DD HH:mm')}
+                                    </TableCell>
+                                    <TableCell
+                                      sx={{ py: 2, fontSize: '0.85rem' }}
+                                    >
+                                      {schedule.courseTitle.length > 15
+                                        ? `${schedule.courseTitle.substring(0, 15)}...`
+                                        : schedule.courseTitle}
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      <Typography
+                                        variant='body1'
+                                        color='primary'
+                                        sx={{ fontWeight: 'bold' }}
+                                      >
+                                        {schedule.participantCount}/{capacity}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      <Typography
+                                        variant='body1'
+                                        color='secondary'
+                                        sx={{ fontWeight: 'bold' }}
+                                      >
+                                        {schedule.pcRentalCount}
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      {isFullyBooked ? (
+                                        <Chip
+                                          label='満席'
+                                          color='error'
+                                          size='small'
+                                          sx={{
+                                            fontWeight: 'bold',
+                                            fontSize: '0.75rem',
+                                          }}
+                                        />
+                                      ) : (
+                                        <Chip
+                                          label={`空${remainingSlots}`}
+                                          color='success'
+                                          size='small'
+                                          sx={{
+                                            fontWeight: 'bold',
+                                            fontSize: '0.75rem',
+                                          }}
+                                        />
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+
+                        {scheduleDetails.length === 0 && (
+                          <Box textAlign='center' py={4}>
+                            <Typography color='text.secondary' variant='body1'>
+                              申し込みのあるスケジュールがありません
+                            </Typography>
+                          </Box>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
               </Grid>
-            </Grid>
-          </Grid>
-        </Box>
+            </Box>
           )}
         </>
       )}
@@ -623,23 +868,25 @@ const BookingDashboard = () => {
           {/* フィルター */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box display="flex" alignItems="center" mb={2}>
+              <Box display='flex' alignItems='center' mb={2}>
                 <FilterList sx={{ mr: 1 }} />
-                <Typography variant="h6">フィルター</Typography>
+                <Typography variant='h6'>フィルター</Typography>
               </Box>
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={12} md={3}>
-                  <FormControl fullWidth size="small" sx={{ minWidth: 200 }}>
+                  <FormControl fullWidth size='small' sx={{ minWidth: 200 }}>
                     <InputLabel>講座</InputLabel>
                     <Select
                       value={filters.courseId}
-                      onChange={(e) => handleFilterChange('courseId', e.target.value)}
-                      label="講座"
+                      onChange={e =>
+                        handleFilterChange('courseId', e.target.value)
+                      }
+                      label='講座'
                       sx={{ minWidth: 200 }}
                     >
-                      <MenuItem value="">すべて</MenuItem>
-                      {courses.map((course) => (
+                      <MenuItem value=''>すべて</MenuItem>
+                      {courses.map(course => (
                         <MenuItem key={course.id} value={course.id}>
                           {course.title}
                         </MenuItem>
@@ -649,23 +896,36 @@ const BookingDashboard = () => {
                 </Grid>
 
                 <Grid item xs={12} md={2}>
-                  <FormControl fullWidth size="small" sx={{ minWidth: 150 }}>
+                  <FormControl fullWidth size='small' sx={{ minWidth: 150 }}>
                     <InputLabel>開催日時</InputLabel>
                     <Select
                       value={filters.scheduleId}
-                      onChange={(e) => handleFilterChange('scheduleId', e.target.value)}
-                      label="開催日時"
+                      onChange={e =>
+                        handleFilterChange('scheduleId', e.target.value)
+                      }
+                      label='開催日時'
                       sx={{ minWidth: 150 }}
                     >
-                      <MenuItem value="">すべて</MenuItem>
-                      {getAvailableSchedules().map((schedule) => (
-                        <MenuItem key={`${schedule.courseId}-${schedule.id}`} value={schedule.id}>
+                      <MenuItem value=''>すべて</MenuItem>
+                      {getAvailableSchedules().map(schedule => (
+                        <MenuItem
+                          key={`${schedule.courseId}-${schedule.id}`}
+                          value={schedule.id}
+                        >
                           <Box>
-                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                              {dayjs(schedule.dateTime.toDate()).format('MM/DD HH:mm')}
+                            <Typography
+                              variant='body2'
+                              sx={{ fontWeight: 'bold' }}
+                            >
+                              {dayjs(schedule.dateTime.toDate()).format(
+                                'MM/DD HH:mm'
+                              )}
                             </Typography>
                             {schedule.courseTitle && (
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography
+                                variant='caption'
+                                color='text.secondary'
+                              >
                                 {schedule.courseTitle}
                               </Typography>
                             )}
@@ -679,10 +939,12 @@ const BookingDashboard = () => {
                 <Grid item xs={12} md={2}>
                   <TextField
                     fullWidth
-                    size="small"
-                    label="会社名"
+                    size='small'
+                    label='会社名'
                     value={filters.companyName}
-                    onChange={(e) => handleFilterChange('companyName', e.target.value)}
+                    onChange={e =>
+                      handleFilterChange('companyName', e.target.value)
+                    }
                     sx={{ minWidth: 120 }}
                   />
                 </Grid>
@@ -690,39 +952,43 @@ const BookingDashboard = () => {
                 <Grid item xs={12} md={2}>
                   <TextField
                     fullWidth
-                    size="small"
-                    label="氏名"
+                    size='small'
+                    label='氏名'
                     value={filters.fullName}
-                    onChange={(e) => handleFilterChange('fullName', e.target.value)}
+                    onChange={e =>
+                      handleFilterChange('fullName', e.target.value)
+                    }
                     sx={{ minWidth: 120 }}
-                    placeholder="山田太郎"
+                    placeholder='山田太郎'
                   />
                 </Grid>
 
                 <Grid item xs={12} md={1.5}>
-                  <FormControl fullWidth size="small" sx={{ minWidth: 100 }}>
+                  <FormControl fullWidth size='small' sx={{ minWidth: 100 }}>
                     <InputLabel>PC貸出</InputLabel>
                     <Select
                       value={filters.needsPcRental}
-                      onChange={(e) => handleFilterChange('needsPcRental', e.target.value)}
-                      label="PC貸出"
+                      onChange={e =>
+                        handleFilterChange('needsPcRental', e.target.value)
+                      }
+                      label='PC貸出'
                       sx={{ minWidth: 100 }}
                     >
-                      <MenuItem value="">すべて</MenuItem>
-                      <MenuItem value="true">希望</MenuItem>
-                      <MenuItem value="false">持参</MenuItem>
+                      <MenuItem value=''>すべて</MenuItem>
+                      <MenuItem value='true'>希望</MenuItem>
+                      <MenuItem value='false'>持参</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
 
                 <Grid item xs={12} md={1.5}>
-                  <Box display="flex" gap={1}>
-                    <Button size="small" onClick={clearFilters}>
+                  <Box display='flex' gap={1}>
+                    <Button size='small' onClick={clearFilters}>
                       クリア
                     </Button>
                     <Button
-                      variant="contained"
-                      size="small"
+                      variant='contained'
+                      size='small'
                       startIcon={<Download />}
                       onClick={exportToCSV}
                     >
@@ -737,14 +1003,19 @@ const BookingDashboard = () => {
           {/* 申込者一覧テーブル */}
           <Card>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">
+              <Box
+                display='flex'
+                justifyContent='space-between'
+                alignItems='center'
+                mb={2}
+              >
+                <Typography variant='h6'>
                   申込者一覧 ({filteredBookings.length}件)
                 </Typography>
               </Box>
 
-              <TableContainer component={Paper} variant="outlined">
-                <Table size="small">
+              <TableContainer component={Paper} variant='outlined'>
+                <Table size='small'>
                   <TableHead>
                     <TableRow>
                       <TableCell>申し込み日時</TableCell>
@@ -752,11 +1023,11 @@ const BookingDashboard = () => {
                       <TableCell>開催日時</TableCell>
                       <TableCell>会社名</TableCell>
                       <TableCell>氏名</TableCell>
-                      <TableCell align="center">PC貸出</TableCell>
+                      <TableCell align='center'>PC貸出</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredBookings.map((booking) => (
+                    {filteredBookings.map(booking => (
                       <TableRow key={booking.id}>
                         <TableCell>
                           {formatDateTime(booking.createdAt)}
@@ -767,11 +1038,13 @@ const BookingDashboard = () => {
                         </TableCell>
                         <TableCell>{booking.companyName}</TableCell>
                         <TableCell>{booking.fullName}</TableCell>
-                        <TableCell align="center">
+                        <TableCell align='center'>
                           <Chip
-                            size="small"
+                            size='small'
                             label={booking.needsPcRental ? '希望' : '持参'}
-                            color={booking.needsPcRental ? 'primary' : 'default'}
+                            color={
+                              booking.needsPcRental ? 'primary' : 'default'
+                            }
                           />
                         </TableCell>
                       </TableRow>
@@ -781,8 +1054,8 @@ const BookingDashboard = () => {
               </TableContainer>
 
               {filteredBookings.length === 0 && (
-                <Box textAlign="center" py={4}>
-                  <Typography color="text.secondary">
+                <Box textAlign='center' py={4}>
+                  <Typography color='text.secondary'>
                     条件に一致する申し込みがありません
                   </Typography>
                 </Box>
@@ -797,23 +1070,28 @@ const BookingDashboard = () => {
         <>
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Box display="flex" alignItems="center">
+              <Box
+                display='flex'
+                justifyContent='space-between'
+                alignItems='center'
+                mb={2}
+              >
+                <Box display='flex' alignItems='center'>
                   <Schedule sx={{ mr: 1 }} />
-                  <Typography variant="h6">
+                  <Typography variant='h6'>
                     研修日時別参加者詳細 ({scheduleDetails.length}回の研修)
                   </Typography>
                 </Box>
                 <Button
-                  variant="contained"
+                  variant='contained'
                   startIcon={<Download />}
                   onClick={exportScheduleDetailsToCSV}
                 >
                   CSV出力
                 </Button>
               </Box>
-              
-              <Typography variant="body2" color="text.secondary">
+
+              <Typography variant='body2' color='text.secondary'>
                 各研修日時の参加者数と参加メンバーの詳細を確認できます。
               </Typography>
             </CardContent>
@@ -822,8 +1100,8 @@ const BookingDashboard = () => {
           {scheduleDetails.length === 0 ? (
             <Card>
               <CardContent>
-                <Box textAlign="center" py={4}>
-                  <Typography color="text.secondary">
+                <Box textAlign='center' py={4}>
+                  <Typography color='text.secondary'>
                     申し込みのある研修がありません
                   </Typography>
                 </Box>
@@ -831,30 +1109,43 @@ const BookingDashboard = () => {
             </Card>
           ) : (
             <Box>
-              {scheduleDetails.map((schedule, index) => (
-                <Accordion key={`${schedule.courseId}-${schedule.scheduleId}`} sx={{ mb: 2 }}>
+              {scheduleDetails.map(schedule => (
+                <Accordion
+                  key={`${schedule.courseId}-${schedule.scheduleId}`}
+                  sx={{ mb: 2 }}
+                >
                   <AccordionSummary expandIcon={<ExpandMore />}>
-                    <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', pr: 2 }}>
+                    <Box
+                      sx={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        pr: 2,
+                      }}
+                    >
                       <Box>
-                        <Typography variant="h6" component="div">
+                        <Typography variant='h6' component='div'>
                           {schedule.courseTitle}
                         </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {dayjs(schedule.scheduleDateTime.toDate()).format('YYYY年MM月DD日 HH:mm')}
+                        <Typography variant='body2' color='text.secondary'>
+                          {dayjs(schedule.scheduleDateTime.toDate()).format(
+                            'YYYY年MM月DD日 HH:mm'
+                          )}
                         </Typography>
                       </Box>
-                      <Box display="flex" gap={2}>
+                      <Box display='flex' gap={2}>
                         <Chip
                           icon={<People />}
                           label={`${schedule.participantCount}名`}
-                          color="primary"
-                          size="small"
+                          color='primary'
+                          size='small'
                         />
                         <Chip
                           icon={<Computer />}
                           label={`PC貸出 ${schedule.pcRentalCount}件`}
-                          color="secondary"
-                          size="small"
+                          color='secondary'
+                          size='small'
                         />
                       </Box>
                     </Box>
@@ -863,19 +1154,22 @@ const BookingDashboard = () => {
                     <Grid container spacing={3}>
                       {/* 参加者統計 */}
                       <Grid item xs={12} md={3}>
-                        <Card variant="outlined">
+                        <Card variant='outlined'>
                           <CardContent>
-                            <Typography variant="subtitle2" gutterBottom>
+                            <Typography variant='subtitle2' gutterBottom>
                               参加者統計
                             </Typography>
-                            <Typography variant="body2">
+                            <Typography variant='body2'>
                               総参加者数: {schedule.participantCount}名
                             </Typography>
-                            <Typography variant="body2">
+                            <Typography variant='body2'>
                               PC貸出希望: {schedule.pcRentalCount}名
                             </Typography>
-                            <Typography variant="body2">
-                              PC持参: {schedule.participantCount - schedule.pcRentalCount}名
+                            <Typography variant='body2'>
+                              PC持参:{' '}
+                              {schedule.participantCount -
+                                schedule.pcRentalCount}
+                              名
                             </Typography>
                           </CardContent>
                         </Card>
@@ -883,19 +1177,19 @@ const BookingDashboard = () => {
 
                       {/* 参加者一覧 */}
                       <Grid item xs={12} md={9}>
-                        <Card variant="outlined">
+                        <Card variant='outlined'>
                           <CardContent>
-                            <Typography variant="subtitle2" gutterBottom>
+                            <Typography variant='subtitle2' gutterBottom>
                               参加メンバー一覧
                             </Typography>
                             <TableContainer>
-                              <Table size="small">
+                              <Table size='small'>
                                 <TableHead>
                                   <TableRow>
-                                    <TableCell width="60px">No.</TableCell>
+                                    <TableCell width='60px'>No.</TableCell>
                                     <TableCell>会社名</TableCell>
                                     <TableCell>氏名</TableCell>
-                                    <TableCell align="center">PC貸出</TableCell>
+                                    <TableCell align='center'>PC貸出</TableCell>
                                     <TableCell>申し込み日時</TableCell>
                                   </TableRow>
                                 </TableHead>
@@ -903,18 +1197,30 @@ const BookingDashboard = () => {
                                   {schedule.bookings.map((booking, idx) => (
                                     <TableRow key={booking.id}>
                                       <TableCell>{idx + 1}</TableCell>
-                                      <TableCell>{booking.companyName}</TableCell>
+                                      <TableCell>
+                                        {booking.companyName}
+                                      </TableCell>
                                       <TableCell>{booking.fullName}</TableCell>
-                                      <TableCell align="center">
+                                      <TableCell align='center'>
                                         <Chip
-                                          size="small"
-                                          label={booking.needsPcRental ? '希望' : '持参'}
-                                          color={booking.needsPcRental ? 'primary' : 'default'}
-                                          variant="outlined"
+                                          size='small'
+                                          label={
+                                            booking.needsPcRental
+                                              ? '希望'
+                                              : '持参'
+                                          }
+                                          color={
+                                            booking.needsPcRental
+                                              ? 'primary'
+                                              : 'default'
+                                          }
+                                          variant='outlined'
                                         />
                                       </TableCell>
                                       <TableCell>
-                                        {dayjs(booking.createdAt.toDate()).format('MM/DD HH:mm')}
+                                        {dayjs(
+                                          booking.createdAt.toDate()
+                                        ).format('MM/DD HH:mm')}
                                       </TableCell>
                                     </TableRow>
                                   ))}
@@ -936,4 +1242,4 @@ const BookingDashboard = () => {
   );
 };
 
-export default BookingDashboard; 
+export default BookingDashboard;

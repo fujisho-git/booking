@@ -1,5 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -31,13 +37,15 @@ const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif',
+    fontFamily:
+      '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif',
   },
   components: {
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif',
+          fontFamily:
+            '"Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif',
         },
       },
     },
@@ -51,15 +59,15 @@ const NavigationButtons = () => {
 
   return (
     <Box sx={{ display: 'flex', gap: 1 }}>
-      <Button 
-        color="inherit" 
+      <Button
+        color='inherit'
         onClick={() => navigate('/')}
         variant={location.pathname === '/' ? 'outlined' : 'text'}
       >
         講座一覧
       </Button>
-      <Button 
-        color="inherit" 
+      <Button
+        color='inherit'
         onClick={() => navigate('/my-bookings')}
         variant={location.pathname === '/my-bookings' ? 'outlined' : 'text'}
       >
@@ -73,33 +81,41 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ja">
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale='ja'>
         <AuthProvider>
           <Router>
-          <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-            <AppBar position="static">
-              <Toolbar>
-                <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-                  研修スケジュール管理システム
-                </Typography>
-                <NavigationButtons />
-              </Toolbar>
-            </AppBar>
-            
-            <Box sx={{ 
-              flexGrow: 1, 
-              p: { xs: 2, sm: 3, md: 4 },
-              width: '100%',
-              maxWidth: '100%'
-            }}>
-              <Routes>
-                <Route path="/" element={<CourseList />} />
-                <Route path="/booking/:courseId" element={<BookingForm />} />
-                <Route path="/my-bookings" element={<MyBookings />} />
-                <Route path="/admin" element={<AdminPanel />} />
-              </Routes>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: '100vh',
+              }}
+            >
+              <AppBar position='static'>
+                <Toolbar>
+                  <Typography variant='h6' component='div' sx={{ flexGrow: 1 }}>
+                    研修スケジュール管理システム
+                  </Typography>
+                  <NavigationButtons />
+                </Toolbar>
+              </AppBar>
+
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  p: { xs: 2, sm: 3, md: 4 },
+                  width: '100%',
+                  maxWidth: '100%',
+                }}
+              >
+                <Routes>
+                  <Route path='/' element={<CourseList />} />
+                  <Route path='/booking/:courseId' element={<BookingForm />} />
+                  <Route path='/my-bookings' element={<MyBookings />} />
+                  <Route path='/admin' element={<AdminPanel />} />
+                </Routes>
+              </Box>
             </Box>
-          </Box>
           </Router>
         </AuthProvider>
       </LocalizationProvider>

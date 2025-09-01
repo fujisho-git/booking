@@ -28,7 +28,7 @@ import {
   Toolbar,
   Tabs,
   Tab,
-  Container
+  Container,
 } from '@mui/material';
 import {
   Add,
@@ -42,7 +42,7 @@ import {
   Group,
   Logout,
   Dashboard,
-  School
+  School,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { signOutUser } from '../utils/auth';
@@ -50,7 +50,14 @@ import Login from './Login';
 import BookingDashboard from './BookingDashboard';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from 'dayjs';
-import { getCourses, createCourse, updateCourse, getBookingsCount, getCancelLogs, getCancelStatistics } from '../utils/firestore';
+import {
+  getCourses,
+  createCourse,
+  updateCourse,
+  getBookingsCount,
+  getCancelLogs,
+  getCancelStatistics,
+} from '../utils/firestore';
 
 const AdminPanel = () => {
   const { currentUser } = useAuth();
@@ -64,22 +71,29 @@ const AdminPanel = () => {
   const [cancelLogs, setCancelLogs] = useState([]);
   const [cancelStats, setCancelStats] = useState(null);
 
-  const { control, handleSubmit, reset, formState: { errors } } = useForm({
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
     defaultValues: {
       title: '',
-      schedules: [{ 
-        id: Date.now().toString(),
-        dateTime: dayjs().add(1, 'day'), 
-        endTime: dayjs().add(1, 'day').add(2, 'hour'),
-        capacity: 10, 
-        pcRentalSlots: 5 
-      }]
-    }
+      schedules: [
+        {
+          id: Date.now().toString(),
+          dateTime: dayjs().add(1, 'day'),
+          endTime: dayjs().add(1, 'day').add(2, 'hour'),
+          capacity: 10,
+          pcRentalSlots: 5,
+        },
+      ],
+    },
   });
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: 'schedules'
+    name: 'schedules',
   });
 
   useEffect(() => {
@@ -87,7 +101,8 @@ const AdminPanel = () => {
   }, []);
 
   useEffect(() => {
-    if (tabValue === 2) { // キャンセルログタブが選択された時
+    if (tabValue === 2) {
+      // キャンセルログタブが選択された時
       fetchCancelLogs();
     }
   }, [tabValue]);
@@ -96,27 +111,30 @@ const AdminPanel = () => {
     try {
       setLoading(true);
       const coursesData = await getCourses();
-      
+
       // 各講座の申し込み状況を取得
       const coursesWithBookings = await Promise.all(
-        coursesData.map(async (course) => {
+        coursesData.map(async course => {
           const scheduleBookings = await Promise.all(
-            (course.schedules || []).map(async (schedule) => {
-              const { totalBookings, pcRentals } = await getBookingsCount(course.id, schedule.id);
+            (course.schedules || []).map(async schedule => {
+              const { totalBookings, pcRentals } = await getBookingsCount(
+                course.id,
+                schedule.id
+              );
               return {
                 ...schedule,
                 totalBookings,
-                pcRentals
+                pcRentals,
               };
             })
           );
           return {
             ...course,
-            schedules: scheduleBookings
+            schedules: scheduleBookings,
           };
         })
       );
-      
+
       setCourses(coursesWithBookings);
     } catch (err) {
       setError('講座の取得に失敗しました');
@@ -134,26 +152,32 @@ const AdminPanel = () => {
         schedules: course.schedules?.map(schedule => ({
           ...schedule,
           dateTime: dayjs(schedule.dateTime.toDate()),
-          endTime: schedule.endTime ? dayjs(schedule.endTime.toDate()) : dayjs(schedule.dateTime.toDate()).add(2, 'hour')
-        })) || [{ 
-          id: Date.now().toString(),
-          dateTime: dayjs().add(1, 'day'), 
-          endTime: dayjs().add(1, 'day').add(2, 'hour'),
-          capacity: 10, 
-          pcRentalSlots: 5 
-        }]
+          endTime: schedule.endTime
+            ? dayjs(schedule.endTime.toDate())
+            : dayjs(schedule.dateTime.toDate()).add(2, 'hour'),
+        })) || [
+          {
+            id: Date.now().toString(),
+            dateTime: dayjs().add(1, 'day'),
+            endTime: dayjs().add(1, 'day').add(2, 'hour'),
+            capacity: 10,
+            pcRentalSlots: 5,
+          },
+        ],
       });
     } else {
       setEditingCourse(null);
       reset({
         title: '',
-        schedules: [{ 
-          id: Date.now().toString(),
-          dateTime: dayjs().add(1, 'day'), 
-          endTime: dayjs().add(1, 'day').add(2, 'hour'),
-          capacity: 10, 
-          pcRentalSlots: 5 
-        }]
+        schedules: [
+          {
+            id: Date.now().toString(),
+            dateTime: dayjs().add(1, 'day'),
+            endTime: dayjs().add(1, 'day').add(2, 'hour'),
+            capacity: 10,
+            pcRentalSlots: 5,
+          },
+        ],
       });
     }
     setOpenDialog(true);
@@ -165,7 +189,7 @@ const AdminPanel = () => {
     reset();
   };
 
-  const onSubmit = async (data) => {
+  const onSubmit = async data => {
     try {
       setSubmitting(true);
       setError(null);
@@ -177,8 +201,8 @@ const AdminPanel = () => {
           dateTime: schedule.dateTime.toDate(),
           endTime: schedule.endTime.toDate(),
           capacity: parseInt(schedule.capacity),
-          pcRentalSlots: parseInt(schedule.pcRentalSlots)
-        }))
+          pcRentalSlots: parseInt(schedule.pcRentalSlots),
+        })),
       };
 
       if (editingCourse) {
@@ -198,12 +222,12 @@ const AdminPanel = () => {
   };
 
   const addSchedule = () => {
-    append({ 
+    append({
       id: Date.now().toString(),
-      dateTime: dayjs().add(1, 'day'), 
+      dateTime: dayjs().add(1, 'day'),
       endTime: dayjs().add(1, 'day').add(2, 'hour'),
-      capacity: 10, 
-      pcRentalSlots: 5 
+      capacity: 10,
+      pcRentalSlots: 5,
     });
   };
 
@@ -212,7 +236,7 @@ const AdminPanel = () => {
       setLoading(true);
       const [logsData, statsData] = await Promise.all([
         getCancelLogs(),
-        getCancelStatistics()
+        getCancelStatistics(),
       ]);
       setCancelLogs(logsData);
       setCancelStats(statsData);
@@ -232,7 +256,7 @@ const AdminPanel = () => {
     }
   };
 
-  const formatDateTime = (dateTime) => {
+  const formatDateTime = dateTime => {
     if (dateTime?.toDate) {
       return dayjs(dateTime.toDate()).format('YYYY/MM/DD HH:mm');
     }
@@ -246,50 +270,44 @@ const AdminPanel = () => {
 
   if (loading && tabValue === 1) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <Box
+        display='flex'
+        justifyContent='center'
+        alignItems='center'
+        minHeight='400px'
+      >
         <Typography>読み込み中...</Typography>
       </Box>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <AppBar position="static" color="transparent" elevation={1} sx={{ mb: 3 }}>
+    <Container maxWidth='lg' sx={{ mt: 4, mb: 4 }}>
+      <AppBar
+        position='static'
+        color='transparent'
+        elevation={1}
+        sx={{ mb: 3 }}
+      >
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant='h6' component='div' sx={{ flexGrow: 1 }}>
             管理者パネル - {currentUser.email}
           </Typography>
-          <Button
-            color="inherit"
-            startIcon={<Logout />}
-            onClick={handleLogout}
-          >
+          <Button color='inherit' startIcon={<Logout />} onClick={handleLogout}>
             ログアウト
           </Button>
         </Toolbar>
       </AppBar>
 
-      <Tabs 
-        value={tabValue} 
-        onChange={(e, newValue) => setTabValue(newValue)} 
+      <Tabs
+        value={tabValue}
+        onChange={(e, newValue) => setTabValue(newValue)}
         sx={{ mb: 3 }}
-        variant="fullWidth"
+        variant='fullWidth'
       >
-        <Tab 
-          icon={<Dashboard />} 
-          label="申込者管理" 
-          iconPosition="start"
-        />
-        <Tab 
-          icon={<School />} 
-          label="講座管理" 
-          iconPosition="start"
-        />
-        <Tab 
-          icon={<Cancel />} 
-          label="キャンセルログ" 
-          iconPosition="start"
-        />
+        <Tab icon={<Dashboard />} label='申込者管理' iconPosition='start' />
+        <Tab icon={<School />} label='講座管理' iconPosition='start' />
+        <Tab icon={<Cancel />} label='キャンセルログ' iconPosition='start' />
       </Tabs>
 
       {/* 申込者管理タブ */}
@@ -303,10 +321,14 @@ const AdminPanel = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary">
+                    <Typography variant='h6' color='text.secondary'>
                       総キャンセル数
                     </Typography>
-                    <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
+                    <Typography
+                      variant='h4'
+                      color='error.main'
+                      sx={{ fontWeight: 'bold' }}
+                    >
                       {cancelStats.totalCancels}
                     </Typography>
                   </CardContent>
@@ -315,10 +337,14 @@ const AdminPanel = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary">
+                    <Typography variant='h6' color='text.secondary'>
                       今日のキャンセル
                     </Typography>
-                    <Typography variant="h4" color="warning.main" sx={{ fontWeight: 'bold' }}>
+                    <Typography
+                      variant='h4'
+                      color='warning.main'
+                      sx={{ fontWeight: 'bold' }}
+                    >
                       {cancelStats.todayCancels}
                     </Typography>
                   </CardContent>
@@ -327,10 +353,14 @@ const AdminPanel = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary">
+                    <Typography variant='h6' color='text.secondary'>
                       今週のキャンセル
                     </Typography>
-                    <Typography variant="h4" color="info.main" sx={{ fontWeight: 'bold' }}>
+                    <Typography
+                      variant='h4'
+                      color='info.main'
+                      sx={{ fontWeight: 'bold' }}
+                    >
                       {cancelStats.weekCancels}
                     </Typography>
                   </CardContent>
@@ -339,10 +369,14 @@ const AdminPanel = () => {
               <Grid item xs={12} sm={6} md={3}>
                 <Card>
                   <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h6" color="text.secondary">
+                    <Typography variant='h6' color='text.secondary'>
                       今月のキャンセル
                     </Typography>
-                    <Typography variant="h4" color="secondary.main" sx={{ fontWeight: 'bold' }}>
+                    <Typography
+                      variant='h4'
+                      color='secondary.main'
+                      sx={{ fontWeight: 'bold' }}
+                    >
                       {cancelStats.monthCancels}
                     </Typography>
                   </CardContent>
@@ -353,12 +387,17 @@ const AdminPanel = () => {
 
           <Card>
             <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">
+              <Box
+                display='flex'
+                justifyContent='space-between'
+                alignItems='center'
+                mb={2}
+              >
+                <Typography variant='h6'>
                   キャンセルログ一覧 ({cancelLogs.length}件)
                 </Typography>
                 <Button
-                  variant="outlined"
+                  variant='outlined'
                   onClick={fetchCancelLogs}
                   disabled={loading}
                 >
@@ -367,18 +406,18 @@ const AdminPanel = () => {
               </Box>
 
               {loading ? (
-                <Box textAlign="center" py={4}>
+                <Box textAlign='center' py={4}>
                   <Typography>読み込み中...</Typography>
                 </Box>
               ) : cancelLogs.length === 0 ? (
-                <Box textAlign="center" py={4}>
-                  <Typography color="text.secondary">
+                <Box textAlign='center' py={4}>
+                  <Typography color='text.secondary'>
                     キャンセルログがありません
                   </Typography>
                 </Box>
               ) : (
-                <TableContainer component={Paper} variant="outlined">
-                  <Table size="small">
+                <TableContainer component={Paper} variant='outlined'>
+                  <Table size='small'>
                     <TableHead>
                       <TableRow>
                         <TableCell>キャンセル日時</TableCell>
@@ -391,13 +430,16 @@ const AdminPanel = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {cancelLogs.map((log) => (
+                      {cancelLogs.map(log => (
                         <TableRow key={log.id}>
                           <TableCell>
                             {formatDateTime(log.canceledAt)}
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                            <Typography
+                              variant='body2'
+                              sx={{ fontWeight: 'bold' }}
+                            >
                               {log.courseTitle}
                             </Typography>
                           </TableCell>
@@ -406,39 +448,51 @@ const AdminPanel = () => {
                           </TableCell>
                           <TableCell>
                             <Box>
-                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                              <Typography
+                                variant='body2'
+                                sx={{ fontWeight: 'bold' }}
+                              >
                                 {log.fullName}
                               </Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              <Typography
+                                variant='caption'
+                                color='text.secondary'
+                              >
                                 {log.companyName}
                               </Typography>
                             </Box>
                           </TableCell>
                           <TableCell>
                             <Chip
-                              size="small"
+                              size='small'
                               label={log.needsPcRental ? 'PC貸出' : 'PC持参'}
                               color={log.needsPcRental ? 'primary' : 'default'}
-                              variant="outlined"
+                              variant='outlined'
                             />
                           </TableCell>
                           <TableCell>
-                            <Typography variant="body2">
+                            <Typography variant='body2'>
                               {log.cancelReason}
                             </Typography>
                           </TableCell>
                           <TableCell>
                             <Chip
-                              size="small"
+                              size='small'
                               label={
-                                log.cancelMethod === 'user_interface' ? 'ユーザー操作' :
-                                log.cancelMethod === 'admin_panel' ? '管理者操作' : 'システム'
+                                log.cancelMethod === 'user_interface'
+                                  ? 'ユーザー操作'
+                                  : log.cancelMethod === 'admin_panel'
+                                    ? '管理者操作'
+                                    : 'システム'
                               }
                               color={
-                                log.cancelMethod === 'user_interface' ? 'info' :
-                                log.cancelMethod === 'admin_panel' ? 'warning' : 'default'
+                                log.cancelMethod === 'user_interface'
+                                  ? 'info'
+                                  : log.cancelMethod === 'admin_panel'
+                                    ? 'warning'
+                                    : 'default'
                               }
-                              variant="outlined"
+                              variant='outlined'
                             />
                           </TableCell>
                         </TableRow>
@@ -455,12 +509,17 @@ const AdminPanel = () => {
       {/* 講座管理タブ */}
       {tabValue === 1 && (
         <>
-          <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-            <Typography variant="h4" component="h1">
+          <Box
+            display='flex'
+            justifyContent='space-between'
+            alignItems='center'
+            mb={3}
+          >
+            <Typography variant='h4' component='h1'>
               講座管理
             </Typography>
             <Button
-              variant="contained"
+              variant='contained'
               startIcon={<Add />}
               onClick={() => handleOpenDialog()}
             >
@@ -469,19 +528,24 @@ const AdminPanel = () => {
           </Box>
 
           {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
+            <Alert severity='error' sx={{ mb: 3 }}>
               {error}
             </Alert>
           )}
 
           <Grid container spacing={3}>
-            {courses.map((course) => (
+            {courses.map(course => (
               <Grid item xs={12} key={course.id}>
                 <Card>
                   <CardContent>
-                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={2}>
+                    <Box
+                      display='flex'
+                      justifyContent='space-between'
+                      alignItems='flex-start'
+                      mb={2}
+                    >
                       <Box>
-                        <Typography variant="h6" component="h2">
+                        <Typography variant='h6' component='h2'>
                           {course.title}
                         </Typography>
                       </Box>
@@ -492,53 +556,63 @@ const AdminPanel = () => {
 
                     <Divider sx={{ my: 2 }} />
 
-                    <Typography variant="h6" gutterBottom>
+                    <Typography variant='h6' gutterBottom>
                       スケジュール・申し込み状況
                     </Typography>
-                    
-                    <TableContainer component={Paper} variant="outlined">
-                      <Table size="small">
+
+                    <TableContainer component={Paper} variant='outlined'>
+                      <Table size='small'>
                         <TableHead>
                           <TableRow>
                             <TableCell>日時</TableCell>
-                            <TableCell align="center">定員</TableCell>
-                            <TableCell align="center">申し込み数</TableCell>
-                            <TableCell align="center">PC貸出</TableCell>
-                            <TableCell align="center">状況</TableCell>
+                            <TableCell align='center'>定員</TableCell>
+                            <TableCell align='center'>申し込み数</TableCell>
+                            <TableCell align='center'>PC貸出</TableCell>
+                            <TableCell align='center'>状況</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {course.schedules?.map((schedule) => {
-                            const isFullyBooked = schedule.totalBookings >= schedule.capacity;
-                            const pcAvailable = schedule.pcRentalSlots - schedule.pcRentals;
-                            
+                          {course.schedules?.map(schedule => {
+                            const isFullyBooked =
+                              schedule.totalBookings >= schedule.capacity;
+                            const pcAvailable =
+                              schedule.pcRentalSlots - schedule.pcRentals;
+
                             return (
                               <TableRow key={schedule.id}>
                                 <TableCell>
                                   {formatDateTime(schedule.dateTime)}
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align='center'>
                                   {schedule.capacity}名
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align='center'>
                                   <Chip
-                                    size="small"
+                                    size='small'
                                     label={`${schedule.totalBookings}名`}
                                     color={isFullyBooked ? 'error' : 'success'}
                                   />
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align='center'>
                                   <Chip
-                                    size="small"
+                                    size='small'
                                     label={`${schedule.pcRentals}/${schedule.pcRentalSlots}`}
                                     color={pcAvailable > 0 ? 'info' : 'warning'}
                                   />
                                 </TableCell>
-                                <TableCell align="center">
+                                <TableCell align='center'>
                                   {isFullyBooked ? (
-                                    <Chip size="small" label="満席" color="error" />
+                                    <Chip
+                                      size='small'
+                                      label='満席'
+                                      color='error'
+                                    />
                                   ) : (
-                                    <Chip size="small" label="受付中" color="success" />
+                                    <Chip
+                                      size='small'
+                                      label='受付中'
+                                      color='success'
+                                    />
                                   )}
                                 </TableCell>
                               </TableRow>
@@ -554,7 +628,7 @@ const AdminPanel = () => {
           </Grid>
 
           {courses.length === 0 && (
-            <Alert severity="info" sx={{ mt: 3 }}>
+            <Alert severity='info' sx={{ mt: 3 }}>
               講座がありません。新規講座を作成してください。
             </Alert>
           )}
@@ -562,41 +636,65 @@ const AdminPanel = () => {
       )}
 
       {/* 講座作成・編集ダイアログ */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingCourse ? '講座編集' : '新規講座作成'}
-        </DialogTitle>
+      <Dialog
+        open={openDialog}
+        onClose={handleCloseDialog}
+        maxWidth='md'
+        fullWidth
+      >
+        <DialogTitle>{editingCourse ? '講座編集' : '新規講座作成'}</DialogTitle>
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogContent>
             <Controller
-              name="title"
+              name='title'
               control={control}
               rules={{ required: '講座名を入力してください' }}
               render={({ field }) => (
                 <TextField
                   {...field}
                   fullWidth
-                  label="講座名"
-                  margin="normal"
+                  label='講座名'
+                  margin='normal'
                   error={!!errors.title}
                   helperText={errors.title?.message}
                 />
               )}
             />
 
-            <Box display="flex" justifyContent="space-between" alignItems="center" sx={{ mt: 3, mb: 2 }}>
-              <Typography variant="h6">
-                開催スケジュール
-              </Typography>
-              <Button variant="outlined" onClick={addSchedule} startIcon={<Add />}>
+            <Box
+              display='flex'
+              justifyContent='space-between'
+              alignItems='center'
+              sx={{ mt: 3, mb: 2 }}
+            >
+              <Typography variant='h6'>開催スケジュール</Typography>
+              <Button
+                variant='outlined'
+                onClick={addSchedule}
+                startIcon={<Add />}
+              >
                 日程追加
               </Button>
             </Box>
 
             {fields.map((field, index) => (
-              <Box key={field.id} sx={{ border: 1, borderColor: 'grey.300', borderRadius: 1, p: 2, mb: 2 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                  <Typography variant="subtitle1">
+              <Box
+                key={field.id}
+                sx={{
+                  border: 1,
+                  borderColor: 'grey.300',
+                  borderRadius: 1,
+                  p: 2,
+                  mb: 2,
+                }}
+              >
+                <Box
+                  display='flex'
+                  justifyContent='space-between'
+                  alignItems='center'
+                  mb={2}
+                >
+                  <Typography variant='subtitle1'>
                     スケジュール {index + 1}
                   </Typography>
                   {fields.length > 1 && (
@@ -615,13 +713,14 @@ const AdminPanel = () => {
                       render={({ field }) => (
                         <DateTimePicker
                           {...field}
-                          label="開始日時"
+                          label='開始日時'
                           slotProps={{
                             textField: {
                               fullWidth: true,
                               error: !!errors.schedules?.[index]?.dateTime,
-                              helperText: errors.schedules?.[index]?.dateTime?.message
-                            }
+                              helperText:
+                                errors.schedules?.[index]?.dateTime?.message,
+                            },
                           }}
                         />
                       )}
@@ -635,13 +734,14 @@ const AdminPanel = () => {
                       render={({ field }) => (
                         <DateTimePicker
                           {...field}
-                          label="終了日時"
+                          label='終了日時'
                           slotProps={{
                             textField: {
                               fullWidth: true,
                               error: !!errors.schedules?.[index]?.endTime,
-                              helperText: errors.schedules?.[index]?.endTime?.message
-                            }
+                              helperText:
+                                errors.schedules?.[index]?.endTime?.message,
+                            },
                           }}
                         />
                       )}
@@ -651,18 +751,23 @@ const AdminPanel = () => {
                     <Controller
                       name={`schedules.${index}.capacity`}
                       control={control}
-                      rules={{ 
+                      rules={{
                         required: '定員を入力してください',
-                        min: { value: 1, message: '定員は1以上で入力してください' }
+                        min: {
+                          value: 1,
+                          message: '定員は1以上で入力してください',
+                        },
                       }}
                       render={({ field }) => (
                         <TextField
                           {...field}
                           fullWidth
-                          label="定員"
-                          type="number"
+                          label='定員'
+                          type='number'
                           error={!!errors.schedules?.[index]?.capacity}
-                          helperText={errors.schedules?.[index]?.capacity?.message}
+                          helperText={
+                            errors.schedules?.[index]?.capacity?.message
+                          }
                         />
                       )}
                     />
@@ -671,18 +776,23 @@ const AdminPanel = () => {
                     <Controller
                       name={`schedules.${index}.pcRentalSlots`}
                       control={control}
-                      rules={{ 
+                      rules={{
                         required: 'PC貸出枠を入力してください',
-                        min: { value: 0, message: 'PC貸出枠は0以上で入力してください' }
+                        min: {
+                          value: 0,
+                          message: 'PC貸出枠は0以上で入力してください',
+                        },
                       }}
                       render={({ field }) => (
                         <TextField
                           {...field}
                           fullWidth
-                          label="PC貸出枠"
-                          type="number"
+                          label='PC貸出枠'
+                          type='number'
                           error={!!errors.schedules?.[index]?.pcRentalSlots}
-                          helperText={errors.schedules?.[index]?.pcRentalSlots?.message}
+                          helperText={
+                            errors.schedules?.[index]?.pcRentalSlots?.message
+                          }
                         />
                       )}
                     />
@@ -692,10 +802,8 @@ const AdminPanel = () => {
             ))}
           </DialogContent>
           <DialogActions>
-            <Button onClick={handleCloseDialog}>
-              キャンセル
-            </Button>
-            <Button type="submit" variant="contained" disabled={submitting}>
+            <Button onClick={handleCloseDialog}>キャンセル</Button>
+            <Button type='submit' variant='contained' disabled={submitting}>
               {submitting ? '保存中...' : '保存'}
             </Button>
           </DialogActions>
@@ -705,4 +813,4 @@ const AdminPanel = () => {
   );
 };
 
-export default AdminPanel; 
+export default AdminPanel;

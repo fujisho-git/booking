@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+*.log
+
+# Cache
+.cache/
+*.cache
+
+# Other
+.DS_Store
+.vscode/
+.husky/
