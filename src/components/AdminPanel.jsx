@@ -43,6 +43,7 @@ import {
   Logout,
   Dashboard,
   School,
+  Email,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { signOutUser } from '../utils/auth';
@@ -57,6 +58,7 @@ import {
   getBookingsCount,
   getCancelLogs,
   getCancelStatistics,
+  getUserBookingsForEmail,
 } from '../utils/firestore';
 
 const AdminPanel = () => {
@@ -70,6 +72,8 @@ const AdminPanel = () => {
   const [tabValue, setTabValue] = useState(0);
   const [cancelLogs, setCancelLogs] = useState([]);
   const [cancelStats, setCancelStats] = useState(null);
+  const [userBookings, setUserBookings] = useState([]);
+  const [loadingUserBookings, setLoadingUserBookings] = useState(false);
 
   const {
     control,
@@ -104,6 +108,9 @@ const AdminPanel = () => {
     if (tabValue === 2) {
       // キャンセルログタブが選択された時
       fetchCancelLogs();
+    } else if (tabValue === 3) {
+      // ユーザー申し込み一覧タブが選択された時
+      fetchUserBookings();
     }
   }, [tabValue]);
 
@@ -248,6 +255,19 @@ const AdminPanel = () => {
     }
   };
 
+  const fetchUserBookings = async () => {
+    try {
+      setLoadingUserBookings(true);
+      const userBookingsData = await getUserBookingsForEmail();
+      setUserBookings(userBookingsData);
+    } catch (err) {
+      setError('申し込み者情報の取得に失敗しました');
+      console.error(err);
+    } finally {
+      setLoadingUserBookings(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOutUser();
@@ -308,6 +328,7 @@ const AdminPanel = () => {
         <Tab icon={<Dashboard />} label='申込者管理' iconPosition='start' />
         <Tab icon={<School />} label='講座管理' iconPosition='start' />
         <Tab icon={<Cancel />} label='キャンセルログ' iconPosition='start' />
+        <Tab icon={<Email />} label='メール送信用' iconPosition='start' />
       </Tabs>
 
       {/* 申込者管理タブ */}
@@ -503,6 +524,132 @@ const AdminPanel = () => {
               )}
             </CardContent>
           </Card>
+        </>
+      )}
+
+      {/* メール送信用タブ */}
+      {tabValue === 3 && (
+        <>
+          <Box
+            display='flex'
+            justifyContent='space-between'
+            alignItems='center'
+            mb={3}
+          >
+            <Typography variant='h4' component='h1'>
+              メール送信用 - 申し込み者一覧
+            </Typography>
+            <Button
+              variant='contained'
+              startIcon={<Email />}
+              onClick={fetchUserBookings}
+              disabled={loadingUserBookings}
+            >
+              {loadingUserBookings ? '読み込み中...' : '最新データを取得'}
+            </Button>
+          </Box>
+
+          {error && (
+            <Alert severity='error' sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
+
+          {userBookings.length === 0 && !loadingUserBookings ? (
+            <Alert severity='info'>申し込み者がいません。</Alert>
+          ) : (
+            <Grid container spacing={3}>
+              {userBookings.map((user, index) => (
+                <Grid
+                  item
+                  xs={12}
+                  key={`${user.companyName}-${user.fullName}-${index}`}
+                >
+                  <Card>
+                    <CardContent>
+                      <Box
+                        sx={{
+                          mb: 2,
+                          p: 2,
+                          bgcolor: 'grey.50',
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Typography
+                          variant='h6'
+                          sx={{ fontWeight: 'bold', mb: 1 }}
+                        >
+                          {user.companyName} {user.fullName} 様
+                        </Typography>
+                        <Typography variant='body2' color='text.secondary'>
+                          {user.email}
+                        </Typography>
+                      </Box>
+
+                      <Typography
+                        variant='subtitle1'
+                        sx={{ fontWeight: 'bold', mb: 2 }}
+                      >
+                        参加予定研修 ({user.bookings.length}件)
+                      </Typography>
+
+                      <Box
+                        sx={{
+                          p: 2,
+                          bgcolor: 'grey.100',
+                          borderRadius: 1,
+                          fontFamily: 'monospace',
+                          fontSize: '0.9rem',
+                          lineHeight: 1.6,
+                          whiteSpace: 'pre-line',
+                        }}
+                      >
+                        {user.bookings.map((booking, bookingIndex) => {
+                          const startTime = dayjs(
+                            booking.scheduleDateTime.toDate()
+                          ).format('YYYY年MM月DD日(ddd) HH:mm');
+                          const endTime = booking.scheduleEndTime
+                            ? dayjs(booking.scheduleEndTime.toDate()).format(
+                                'HH:mm'
+                              )
+                            : '';
+                          const timeRange = endTime
+                            ? `${startTime}～${endTime}`
+                            : startTime;
+
+                          // デバッグ用ログ
+                          console.log('Booking data:', {
+                            courseTitle: booking.courseTitle,
+                            scheduleDateTime: booking.scheduleDateTime,
+                            scheduleEndTime: booking.scheduleEndTime,
+                            hasEndTime: !!booking.scheduleEndTime,
+                          });
+
+                          return (
+                            <div key={bookingIndex}>
+                              ■ {booking.courseTitle}
+                              日時: {timeRange}
+                              {bookingIndex < user.bookings.length - 1
+                                ? '\n'
+                                : ''}
+                            </div>
+                          );
+                        })}
+                      </Box>
+
+                      <Typography
+                        variant='caption'
+                        color='text.secondary'
+                        sx={{ mt: 1, display: 'block' }}
+                      >
+                        ※ 上記の内容をそのままメールにコピー＆ペーストできます
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          )}
         </>
       )}
 

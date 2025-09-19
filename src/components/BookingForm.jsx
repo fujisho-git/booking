@@ -25,6 +25,7 @@ import {
   Computer,
   EventAvailable,
   ArrowBack,
+  Email,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import {
@@ -58,6 +59,7 @@ const BookingForm = () => {
     defaultValues: {
       companyName: '',
       fullName: '',
+      email: '',
       needsPcRental: 'false',
       scheduleId: '',
     },
@@ -79,6 +81,7 @@ const BookingForm = () => {
         reset({
           companyName: parsedUserInfo.companyName || '',
           fullName: parsedUserInfo.fullName || '',
+          email: parsedUserInfo.email || '',
           needsPcRental: 'false',
           scheduleId: '',
         });
@@ -174,9 +177,11 @@ const BookingForm = () => {
         scheduleId: data.scheduleId,
         companyName: data.companyName.trim(),
         fullName: data.fullName.trim(),
+        email: data.email.trim(),
         needsPcRental: data.needsPcRental === 'true',
         courseTitle: course.title,
         scheduleDateTime: selectedScheduleData.dateTime,
+        scheduleEndTime: selectedScheduleData.endTime,
       };
 
       await createBooking(bookingData);
@@ -187,6 +192,7 @@ const BookingForm = () => {
         JSON.stringify({
           companyName: data.companyName.trim(),
           fullName: data.fullName.trim(),
+          email: data.email.trim(),
         })
       );
 
@@ -522,6 +528,51 @@ const BookingForm = () => {
                     />
                   )}
                 />
+
+                {/* メールアドレス */}
+                <Controller
+                  name='email'
+                  control={control}
+                  rules={{
+                    required: 'メールアドレスを入力してください',
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: '正しいメールアドレスを入力してください',
+                    },
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      label='メールアドレス'
+                      variant='outlined'
+                      margin='normal'
+                      type='email'
+                      error={!!errors.email}
+                      helperText={errors.email?.message}
+                      InputProps={{
+                        startAdornment: (
+                          <Email sx={{ color: 'action.active', mr: 1 }} />
+                        ),
+                      }}
+                    />
+                  )}
+                />
+
+                {/* メールアドレス案内 */}
+                <Typography
+                  variant='body2'
+                  color='text.secondary'
+                  sx={{
+                    mt: 1,
+                    mb: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Email sx={{ mr: 1, fontSize: 18 }} />
+                  後日、お申込み日時をメールにてご連絡いたします
+                </Typography>
 
                 {/* PC貸出 */}
                 <FormControl

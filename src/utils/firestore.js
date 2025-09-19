@@ -5,6 +5,7 @@ import {
   getDoc,
   addDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   orderBy,
@@ -402,6 +403,146 @@ export const createCancelLog = async (
     console.error('キャンセルログ記録エラー:', error);
     // ログ記録に失敗してもキャンセル処理は続行
     return null;
+  }
+};
+
+// 申し込み者ごとの参加研修情報を取得（メール送信用）
+export const getUserBookingsForEmail = async () => {
+  try {
+    const [bookings, courses] = await Promise.all([
+      getAllBookings(),
+      getCourses(),
+    ]);
+
+    // 講座情報をマップ化（高速検索用）
+    const coursesMap = {};
+    courses.forEach(course => {
+      coursesMap[course.id] = course;
+    });
+
+    // ユーザーごとにグループ化
+    const userBookingsMap = {};
+
+    bookings.forEach(booking => {
+      const userKey = `${booking.companyName}|${booking.fullName}|${booking.email}`;
+
+      if (!userBookingsMap[userKey]) {
+        userBookingsMap[userKey] = {
+          companyName: booking.companyName,
+          fullName: booking.fullName,
+          email: booking.email,
+          bookings: [],
+        };
+      }
+
+      // 講座情報から終了時間を取得
+      const course = coursesMap[booking.courseId];
+      const schedule = course?.schedules?.find(
+        s => s.id === booking.scheduleId
+      );
+
+      userBookingsMap[userKey].bookings.push({
+        courseTitle: booking.courseTitle,
+        scheduleDateTime: booking.scheduleDateTime,
+        scheduleEndTime: booking.scheduleEndTime || schedule?.endTime,
+        createdAt: booking.createdAt,
+      });
+    });
+
+    // 配列に変換して会社名・氏名でソート
+    const userBookingsList = Object.values(userBookingsMap);
+    userBookingsList.sort((a, b) => {
+      const companyCompare = a.companyName.localeCompare(b.companyName, 'ja');
+      if (companyCompare !== 0) return companyCompare;
+      return a.fullName.localeCompare(b.fullName, 'ja');
+    });
+
+    // 各ユーザーの申し込みを日時順でソート
+    userBookingsList.forEach(user => {
+      user.bookings.sort(
+        (a, b) => a.scheduleDateTime.toDate() - b.scheduleDateTime.toDate()
+      );
+    });
+
+    return userBookingsList;
+  } catch (error) {
+    console.error('申し込み者情報取得エラー:', error);
+    throw error;
+  }
+};
+
+// 管理者による申し込みキャンセル
+export const adminCancelBooking = async (
+  bookingId,
+  adminReason = '管理者によるキャンセル'
+) => {
+  try {
+    const bookingRef = doc(db, 'bookings', bookingId);
+
+    // 申し込みが存在するかチェック
+    const bookingDoc = await getDoc(bookingRef);
+    if (!bookingDoc.exists()) {
+      throw new Error('申し込みが見つかりません');
+    }
+
+    const bookingData = { id: bookingDoc.id, ...bookingDoc.data() };
+
+    // キャンセルログを記録（管理者操作として記録）
+    try {
+      await createCancelLog({
+        ...bookingData,
+        cancelMethod: 'admin_panel',
+        cancelReason: adminReason,
+      });
+    } catch (logError) {
+      console.error(
+        'ログ記録は失敗しましたが、キャンセル処理を続行します:',
+        logError
+      );
+    }
+
+    // 申し込みを削除
+    await deleteDoc(bookingRef);
+
+    console.log('=== 管理者によるキャンセル完了 ===');
+    console.log('キャンセルされた申し込みID:', bookingId);
+    console.log('管理者理由:', adminReason);
+    console.log('実行時刻:', new Date().toISOString());
+    console.log('==================================');
+
+    return true;
+  } catch (error) {
+    console.error('管理者キャンセルエラー:', error);
+    throw error;
+  }
+};
+
+// 管理者による申し込み追加
+export const adminCreateBooking = async bookingData => {
+  try {
+    // 管理者による追加であることをマーク
+    const adminBookingData = {
+      ...bookingData,
+      createdBy: 'admin',
+      createdAt: serverTimestamp(),
+    };
+
+    const result = await createBooking(adminBookingData);
+
+    console.log('=== 管理者による申し込み追加完了 ===');
+    console.log('追加された申し込みID:', result);
+    console.log(
+      '申し込み者:',
+      `${bookingData.companyName} ${bookingData.fullName}`
+    );
+    console.log('講座:', bookingData.courseTitle);
+    console.log('実行時刻:', new Date().toISOString());
+    console.log('=====================================');
+
+    return result;
+  } catch (error) {
+    console.error('管理者申し込み追加エラー:', error);
+    throw error;
   }
 };
 

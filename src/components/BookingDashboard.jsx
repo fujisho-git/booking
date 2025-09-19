@@ -30,6 +30,13 @@ import {
   ListItem,
   ListItemText,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Download,
@@ -41,6 +48,10 @@ import {
   ExpandMore,
   Schedule,
   Group,
+  Cancel,
+  Add,
+  Delete,
+  PersonAdd,
 } from '@mui/icons-material';
 import dayjs from 'dayjs';
 import Papa from 'papaparse';
@@ -48,6 +59,7 @@ import {
   getAllBookings,
   getBookingStatistics,
   getCourses,
+  adminCancelBooking,
 } from '../utils/firestore';
 
 const BookingDashboard = () => {
@@ -77,17 +89,24 @@ const BookingDashboard = () => {
     dateTo: '',
   });
 
+  // 管理機能用の状態
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
   useEffect(() => {
     fetchData();
   }, []);
 
   useEffect(() => {
     applyFilters();
-  }, [allBookings, filters]);
+  }, [allBookings, filters]); // applyFiltersは内部でstateのみを使用するため依存関係に含めない
 
   useEffect(() => {
     processScheduleDetails();
-  }, [allBookings, courses]);
+  }, [allBookings, courses]); // processScheduleDetailsは内部でstateのみを使用するため依存関係に含めない
 
   const fetchData = async () => {
     try {
@@ -243,6 +262,45 @@ const BookingDashboard = () => {
     }
     const course = courses.find(c => c.id === filters.courseId);
     return course?.schedules || [];
+  };
+
+  // 管理機能のハンドラー
+  const handleCancelBooking = booking => {
+    setBookingToCancel(booking);
+    setCancelReason('');
+    setCancelDialogOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!bookingToCancel || !cancelReason.trim()) {
+      return;
+    }
+
+    try {
+      setCancelLoading(true);
+      await adminCancelBooking(bookingToCancel.id, cancelReason.trim());
+
+      // データを再取得
+      await fetchData();
+
+      setCancelDialogOpen(false);
+      setBookingToCancel(null);
+      setCancelReason('');
+
+      setSuccessMessage('申し込みをキャンセルしました');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (error) {
+      setError('キャンセルに失敗しました: ' + error.message);
+      console.error(error);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleCloseCancel = () => {
+    setCancelDialogOpen(false);
+    setBookingToCancel(null);
+    setCancelReason('');
   };
 
   const exportToCSV = () => {
@@ -1024,6 +1082,7 @@ const BookingDashboard = () => {
                       <TableCell>会社名</TableCell>
                       <TableCell>氏名</TableCell>
                       <TableCell align='center'>PC貸出</TableCell>
+                      <TableCell align='center'>操作</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -1046,6 +1105,17 @@ const BookingDashboard = () => {
                               booking.needsPcRental ? 'primary' : 'default'
                             }
                           />
+                        </TableCell>
+                        <TableCell align='center'>
+                          <Tooltip title='申し込みをキャンセル'>
+                            <IconButton
+                              size='small'
+                              color='error'
+                              onClick={() => handleCancelBooking(booking)}
+                            >
+                              <Delete />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1238,6 +1308,79 @@ const BookingDashboard = () => {
           )}
         </>
       )}
+
+      {/* 成功メッセージ */}
+      {successMessage && (
+        <Alert
+          severity='success'
+          sx={{ position: 'fixed', top: 20, right: 20, zIndex: 9999 }}
+        >
+          {successMessage}
+        </Alert>
+      )}
+
+      {/* キャンセル確認ダイアログ */}
+      <Dialog
+        open={cancelDialogOpen}
+        onClose={handleCloseCancel}
+        aria-labelledby='cancel-dialog-title'
+        maxWidth='sm'
+        fullWidth
+      >
+        <DialogTitle id='cancel-dialog-title'>
+          申し込みをキャンセルしますか？
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {bookingToCancel && (
+              <>
+                以下の申し込みをキャンセルします。この操作は取り消せません。
+                <br />
+                <br />
+                <strong>申し込み者:</strong> {bookingToCancel.companyName}{' '}
+                {bookingToCancel.fullName}
+                <br />
+                <strong>講座名:</strong> {bookingToCancel.courseTitle}
+                <br />
+                <strong>開催日時:</strong>{' '}
+                {formatDateTime(bookingToCancel.scheduleDateTime)}
+                <br />
+                <strong>PC貸出:</strong>{' '}
+                {bookingToCancel.needsPcRental ? 'PC貸出希望' : 'PC持参'}
+              </>
+            )}
+          </DialogContentText>
+          <TextField
+            autoFocus
+            margin='dense'
+            label='キャンセル理由'
+            fullWidth
+            multiline
+            rows={3}
+            variant='outlined'
+            value={cancelReason}
+            onChange={e => setCancelReason(e.target.value)}
+            placeholder='管理者によるキャンセルの理由を入力してください'
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCancel} disabled={cancelLoading}>
+            戻る
+          </Button>
+          <Button
+            onClick={handleConfirmCancel}
+            color='error'
+            variant='contained'
+            disabled={cancelLoading || !cancelReason.trim()}
+            startIcon={
+              cancelLoading ? <CircularProgress size={20} /> : <Delete />
+            }
+          >
+            {cancelLoading ? 'キャンセル中...' : 'キャンセル実行'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
