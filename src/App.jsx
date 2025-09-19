@@ -14,7 +14,6 @@ import { Box, AppBar, Toolbar, Typography, Button } from '@mui/material';
 import CourseList from './components/CourseList';
 import BookingForm from './components/BookingForm';
 import AdminPanel from './components/AdminPanel';
-import MyBookings from './components/MyBookings';
 import { AuthProvider } from './contexts/AuthContext';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
@@ -66,13 +65,6 @@ const NavigationButtons = () => {
       >
         講座一覧
       </Button>
-      <Button
-        color='inherit'
-        onClick={() => navigate('/my-bookings')}
-        variant={location.pathname === '/my-bookings' ? 'outlined' : 'text'}
-      >
-        マイページ
-      </Button>
     </Box>
   );
 };
@@ -111,7 +103,6 @@ function App() {
                 <Routes>
                   <Route path='/' element={<CourseList />} />
                   <Route path='/booking/:courseId' element={<BookingForm />} />
-                  <Route path='/my-bookings' element={<MyBookings />} />
                   <Route path='/admin' element={<AdminPanel />} />
                 </Routes>
               </Box>

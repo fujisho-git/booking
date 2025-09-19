@@ -204,9 +204,9 @@ const BookingForm = () => {
       setSuccess(true);
       reset();
 
-      // 3秒後にマイページに移動する
+      // 3秒後にトップページに移動する
       setTimeout(() => {
-        navigate('/my-bookings');
+        navigate('/');
       }, 3000);
     } catch (err) {
       // トランザクション処理からのエラーメッセージをそのまま表示
@@ -258,7 +258,7 @@ const BookingForm = () => {
         <Typography variant='body1'>
           申し込みありがとうございました。
           <br />
-          3秒後にマイページに移動します...
+          3秒後にトップページに移動します...
         </Typography>
       </Paper>
     );

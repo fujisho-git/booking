@@ -20,68 +20,19 @@ import {
   School,
 } from '@mui/icons-material';
 
-import {
-  getCourses,
-  getBookingsCount,
-  checkUserBookingExists,
-} from '../utils/firestore';
+import { getCourses, getBookingsCount } from '../utils/firestore';
 
 const CourseList = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [bookingCounts, setBookingCounts] = useState({});
-  const [userBookings, setUserBookings] = useState(new Set());
-  const [userInfo, setUserInfo] = useState({ companyName: '', fullName: '' });
 
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCourses();
   }, []);
-
-  useEffect(() => {
-    // ローカルストレージからユーザー情報を取得
-    const savedUserInfo = localStorage.getItem('userInfo');
-    if (savedUserInfo) {
-      try {
-        const parsedUserInfo = JSON.parse(savedUserInfo);
-        setUserInfo(parsedUserInfo);
-        checkUserBookings(parsedUserInfo);
-      } catch (error) {
-        console.error('ユーザー情報の読み込みエラー:', error);
-      }
-    }
-  }, [courses]);
-
-  const checkUserBookings = async userInfo => {
-    if (!userInfo.companyName || !userInfo.fullName || courses.length === 0) {
-      return;
-    }
-
-    try {
-      const bookingChecks = await Promise.all(
-        courses.map(async course => {
-          const hasBooking = await checkUserBookingExists(
-            course.id,
-            userInfo.companyName,
-            userInfo.fullName
-          );
-          return { courseId: course.id, hasBooking };
-        })
-      );
-
-      const bookedCourses = new Set(
-        bookingChecks
-          .filter(check => check.hasBooking)
-          .map(check => check.courseId)
-      );
-
-      setUserBookings(bookedCourses);
-    } catch (error) {
-      console.error('申し込み状況確認エラー:', error);
-    }
-  };
 
   const fetchCourses = async () => {
     try {
@@ -143,20 +94,6 @@ const CourseList = () => {
 
   return (
     <Box sx={{ mt: { xs: 4, md: 8 } }}>
-      {/* ヘルプテキストとマイページリンク */}
-      {userInfo.companyName && userInfo.fullName && (
-        <Alert severity='info' sx={{ mb: 4, textAlign: 'center' }}>
-          <Button
-            variant='outlined'
-            size='small'
-            onClick={() => navigate('/my-bookings')}
-            sx={{ ml: 2 }}
-          >
-            マイページで申し込み状況を確認
-          </Button>
-        </Alert>
-      )}
-
       {/* <Typography variant="h4" component="h1" gutterBottom align="center" sx={{ mb: 4 }}>
         研修一覧
       </Typography> */}
@@ -257,12 +194,10 @@ const CourseList = () => {
                   variant='contained'
                   startIcon={<EventAvailable />}
                   onClick={() => navigate(`/booking/${course.id}`)}
-                  disabled={
-                    course.schedules?.every(
-                      schedule =>
-                        getAvailabilityStatus(course, schedule).isFullyBooked
-                    ) || userBookings.has(course.id)
-                  }
+                  disabled={course.schedules?.every(
+                    schedule =>
+                      getAvailabilityStatus(course, schedule).isFullyBooked
+                  )}
                   fullWidth
                   sx={{
                     py: { xs: 2.5, md: 3 },
@@ -290,7 +225,7 @@ const CourseList = () => {
                   className='notranslate'
                   translate='no'
                 >
-                  {userBookings.has(course.id) ? '申し込み済み' : '申し込む'}
+                  申し込む
                 </Button>
               </CardActions>
             </Card>

@@ -1,0 +1,18 @@
+# すべてのテキストファイルで改行コードを統一
+* text=auto
+
+# JavaScriptファイルはLFを使用
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+
+# CSSファイルはLFを使用
+*.css text eol=lf
+*.scss text eol=lf
+
+# JSONファイルはLFを使用
+*.json text eol=lf
+
+# マークダウンファイルはLFを使用
+*.md text eol=lf
