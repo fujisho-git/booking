@@ -29,6 +29,10 @@ import {
   Tabs,
   Tab,
   Container,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Add,
@@ -44,6 +48,7 @@ import {
   Dashboard,
   School,
   Email,
+  FilterList,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 import { signOutUser } from '../utils/auth';
@@ -73,7 +78,16 @@ const AdminPanel = () => {
   const [cancelLogs, setCancelLogs] = useState([]);
   const [cancelStats, setCancelStats] = useState(null);
   const [userBookings, setUserBookings] = useState([]);
+  const [filteredUserBookings, setFilteredUserBookings] = useState([]);
   const [loadingUserBookings, setLoadingUserBookings] = useState(false);
+
+  // メール送信用タブのフィルター条件
+  const [emailFilters, setEmailFilters] = useState({
+    courseTitle: '',
+    scheduleDateTime: '',
+    companyName: '',
+    fullName: '',
+  });
 
   const {
     control,
@@ -113,6 +127,10 @@ const AdminPanel = () => {
       fetchUserBookings();
     }
   }, [tabValue]);
+
+  useEffect(() => {
+    applyEmailFilters();
+  }, [userBookings, emailFilters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCourses = async () => {
     try {
@@ -281,6 +299,95 @@ const AdminPanel = () => {
       return dayjs(dateTime.toDate()).format('YYYY/MM/DD HH:mm');
     }
     return dayjs(dateTime).format('YYYY/MM/DD HH:mm');
+  };
+
+  // メール送信用タブのフィルタリング機能
+  const applyEmailFilters = () => {
+    let filtered = [...userBookings];
+
+    // 講座でフィルター
+    if (emailFilters.courseTitle) {
+      filtered = filtered.filter(user =>
+        user.bookings.some(booking =>
+          booking.courseTitle
+            .toLowerCase()
+            .includes(emailFilters.courseTitle.toLowerCase())
+        )
+      );
+    }
+
+    // 開催日時でフィルター
+    if (emailFilters.scheduleDateTime) {
+      filtered = filtered.filter(user =>
+        user.bookings.some(booking => {
+          const bookingDateTime = dayjs(
+            booking.scheduleDateTime.toDate()
+          ).format('YYYY/MM/DD HH:mm');
+          return bookingDateTime.includes(emailFilters.scheduleDateTime);
+        })
+      );
+    }
+
+    // 会社名でフィルター
+    if (emailFilters.companyName) {
+      filtered = filtered.filter(user =>
+        user.companyName
+          .toLowerCase()
+          .includes(emailFilters.companyName.toLowerCase())
+      );
+    }
+
+    // 氏名でフィルター
+    if (emailFilters.fullName) {
+      filtered = filtered.filter(user =>
+        user.fullName
+          .toLowerCase()
+          .includes(emailFilters.fullName.toLowerCase())
+      );
+    }
+
+    setFilteredUserBookings(filtered);
+  };
+
+  const handleEmailFilterChange = (field, value) => {
+    setEmailFilters(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const clearEmailFilters = () => {
+    setEmailFilters({
+      courseTitle: '',
+      scheduleDateTime: '',
+      companyName: '',
+      fullName: '',
+    });
+  };
+
+  // 利用可能な講座タイトルを取得
+  const getAvailableCourseTitles = () => {
+    const courseTitles = new Set();
+    userBookings.forEach(user => {
+      user.bookings.forEach(booking => {
+        courseTitles.add(booking.courseTitle);
+      });
+    });
+    return Array.from(courseTitles).sort();
+  };
+
+  // 利用可能な開催日時を取得
+  const getAvailableScheduleTimes = () => {
+    const scheduleTimes = new Set();
+    userBookings.forEach(user => {
+      user.bookings.forEach(booking => {
+        const dateTime = dayjs(booking.scheduleDateTime.toDate()).format(
+          'YYYY/MM/DD HH:mm'
+        );
+        scheduleTimes.add(dateTime);
+      });
+    });
+    return Array.from(scheduleTimes).sort();
   };
 
   // 認証されていない場合はログイン画面を表示
@@ -555,100 +662,180 @@ const AdminPanel = () => {
             </Alert>
           )}
 
+          {/* フィルター */}
+          {userBookings.length > 0 && (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Box display='flex' alignItems='center' mb={2}>
+                  <FilterList sx={{ mr: 1 }} />
+                  <Typography variant='h6'>フィルター</Typography>
+                </Box>
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth size='small'>
+                      <InputLabel>講座</InputLabel>
+                      <Select
+                        value={emailFilters.courseTitle}
+                        onChange={e =>
+                          handleEmailFilterChange('courseTitle', e.target.value)
+                        }
+                        label='講座'
+                      >
+                        <MenuItem value=''>すべて</MenuItem>
+                        {getAvailableCourseTitles().map(title => (
+                          <MenuItem key={title} value={title}>
+                            {title}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} md={3}>
+                    <FormControl fullWidth size='small'>
+                      <InputLabel>開催日時</InputLabel>
+                      <Select
+                        value={emailFilters.scheduleDateTime}
+                        onChange={e =>
+                          handleEmailFilterChange(
+                            'scheduleDateTime',
+                            e.target.value
+                          )
+                        }
+                        label='開催日時'
+                      >
+                        <MenuItem value=''>すべて</MenuItem>
+                        {getAvailableScheduleTimes().map(dateTime => (
+                          <MenuItem key={dateTime} value={dateTime}>
+                            {dateTime}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      size='small'
+                      label='会社名'
+                      value={emailFilters.companyName}
+                      onChange={e =>
+                        handleEmailFilterChange('companyName', e.target.value)
+                      }
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <TextField
+                      fullWidth
+                      size='small'
+                      label='氏名'
+                      value={emailFilters.fullName}
+                      onChange={e =>
+                        handleEmailFilterChange('fullName', e.target.value)
+                      }
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} md={2}>
+                    <Button
+                      size='small'
+                      onClick={clearEmailFilters}
+                      sx={{ height: '40px' }}
+                    >
+                      クリア
+                    </Button>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
+
           {userBookings.length === 0 && !loadingUserBookings ? (
             <Alert severity='info'>申し込み者がいません。</Alert>
+          ) : filteredUserBookings.length === 0 && userBookings.length > 0 ? (
+            <Alert severity='info'>
+              フィルター条件に一致する申し込み者がいません。
+            </Alert>
           ) : (
-            <Grid container spacing={3}>
-              {userBookings.map((user, index) => (
-                <Grid
-                  item
-                  xs={12}
-                  key={`${user.companyName}-${user.fullName}-${index}`}
-                >
-                  <Card>
-                    <CardContent>
-                      <Box
-                        sx={{
-                          mb: 2,
-                          p: 2,
-                          bgcolor: 'grey.50',
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Typography
-                          variant='h6'
-                          sx={{ fontWeight: 'bold', mb: 1 }}
+            <>
+              <Typography variant='h6' sx={{ mb: 2 }}>
+                表示件数: {filteredUserBookings.length}件 / 全
+                {userBookings.length}件
+              </Typography>
+              <Grid container spacing={3}>
+                {filteredUserBookings.map((user, index) => (
+                  <Grid
+                    item
+                    xs={12}
+                    key={`${user.companyName}-${user.fullName}-${index}`}
+                  >
+                    <Card>
+                      <CardContent>
+                        <Box
+                          sx={{
+                            mb: 2,
+                            p: 2,
+                            bgcolor: 'grey.50',
+                            borderRadius: 1,
+                          }}
                         >
-                          {user.companyName} {user.fullName} 様
+                          <Typography
+                            variant='h6'
+                            sx={{ fontWeight: 'bold', mb: 1 }}
+                          >
+                            {user.companyName} {user.fullName} 様
+                          </Typography>
+                          <Typography variant='body2' color='text.secondary'>
+                            {user.email}
+                          </Typography>
+                        </Box>
+
+                        <Typography
+                          variant='subtitle1'
+                          sx={{ fontWeight: 'bold', mb: 2 }}
+                        >
+                          参加予定研修 ({user.bookings.length}件)
                         </Typography>
-                        <Typography variant='body2' color='text.secondary'>
-                          {user.email}
-                        </Typography>
-                      </Box>
 
-                      <Typography
-                        variant='subtitle1'
-                        sx={{ fontWeight: 'bold', mb: 2 }}
-                      >
-                        参加予定研修 ({user.bookings.length}件)
-                      </Typography>
+                        <Box
+                          sx={{
+                            p: 2,
+                            bgcolor: 'grey.100',
+                            borderRadius: 1,
+                            fontFamily: 'monospace',
+                            fontSize: '0.9rem',
+                            lineHeight: 1.6,
+                            whiteSpace: 'pre-line',
+                          }}
+                        >
+                          {`${user.companyName} ${user.fullName} 様
+メールアドレス: ${user.email}
 
-                      <Box
-                        sx={{
-                          p: 2,
-                          bgcolor: 'grey.100',
-                          borderRadius: 1,
-                          fontFamily: 'monospace',
-                          fontSize: '0.9rem',
-                          lineHeight: 1.6,
-                          whiteSpace: 'pre-line',
-                        }}
-                      >
-                        {user.bookings.map((booking, bookingIndex) => {
-                          const startTime = dayjs(
-                            booking.scheduleDateTime.toDate()
-                          ).format('YYYY年MM月DD日(ddd) HH:mm');
-                          const endTime = booking.scheduleEndTime
-                            ? dayjs(booking.scheduleEndTime.toDate()).format(
-                                'HH:mm'
-                              )
-                            : '';
-                          const timeRange = endTime
-                            ? `${startTime}～${endTime}`
-                            : startTime;
+参加予定研修:
+${user.bookings
+  .map(booking => {
+    const startTime = dayjs(booking.scheduleDateTime.toDate()).format(
+      'YYYY年MM月DD日(ddd) HH:mm'
+    );
+    const endTime = booking.scheduleEndTime
+      ? dayjs(booking.scheduleEndTime.toDate()).format('HH:mm')
+      : '';
+    const timeRange = endTime ? `${startTime}～${endTime}` : startTime;
 
-                          // デバッグ用ログ
-                          console.log('Booking data:', {
-                            courseTitle: booking.courseTitle,
-                            scheduleDateTime: booking.scheduleDateTime,
-                            scheduleEndTime: booking.scheduleEndTime,
-                            hasEndTime: !!booking.scheduleEndTime,
-                          });
-
-                          return (
-                            <div key={bookingIndex}>
-                              ■ {booking.courseTitle}
-                              日時: {timeRange}
-                              {bookingIndex < user.bookings.length - 1
-                                ? '\n'
-                                : ''}
-                            </div>
-                          );
-                        })}
-                      </Box>
-
-                      <Typography
-                        variant='caption'
-                        color='text.secondary'
-                        sx={{ mt: 1, display: 'block' }}
-                      >
-                        ※ 上記の内容をそのままメールにコピー＆ペーストできます
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
+    return `■ ${booking.courseTitle}
+  日時: ${timeRange}`;
+  })
+  .join('\n')}`}
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            </>
           )}
         </>
       )}
