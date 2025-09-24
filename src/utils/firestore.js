@@ -36,6 +36,7 @@ export const testFirestoreConnection = async () => {
 export const coursesCollection = collection(db, 'courses');
 export const bookingsCollection = collection(db, 'bookings');
 export const cancelLogsCollection = collection(db, 'cancelLogs');
+export const categoriesCollection = collection(db, 'categories');
 
 // 講座の取得
 export const getCourses = async () => {
@@ -49,6 +50,52 @@ export const getCourses = async () => {
     }));
   } catch (error) {
     console.error('講座の取得エラー:', error);
+    throw error;
+  }
+};
+
+// 申込者向け講座の取得（アクティブな講座のみ）
+export const getActiveCourses = async () => {
+  try {
+    // 複合インデックスの問題を回避するため、全講座を取得してフィルタリング
+    const querySnapshot = await getDocs(
+      query(coursesCollection, orderBy('createdAt', 'desc'))
+    );
+
+    const allCourses = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // isActiveがtrueの講座のみを返す（未設定の場合はtrueとして扱う）
+    return allCourses.filter(course => course.isActive !== false);
+  } catch (error) {
+    console.error('アクティブ講座の取得エラー:', error);
+    throw error;
+  }
+};
+
+// カテゴリ別講座の取得（管理画面用）
+export const getCoursesByCategory = async (category = null) => {
+  try {
+    // 全ての講座を取得してクライアント側でフィルタリング
+    const querySnapshot = await getDocs(
+      query(coursesCollection, orderBy('createdAt', 'desc'))
+    );
+
+    const allCourses = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // カテゴリが指定されている場合はフィルタリング
+    if (category) {
+      return allCourses.filter(course => course.category === category);
+    }
+
+    return allCourses;
+  } catch (error) {
+    console.error('カテゴリ別講座の取得エラー:', error);
     throw error;
   }
 };
@@ -288,6 +335,36 @@ export const updateCourse = async (courseId, updateData) => {
   }
 };
 
+// 既存講座にカテゴリを一括設定
+export const updateCoursesWithCategory = async () => {
+  try {
+    const coursesSnapshot = await getDocs(coursesCollection);
+    const updatePromises = [];
+
+    coursesSnapshot.forEach(courseDoc => {
+      const courseData = courseDoc.data();
+      // カテゴリが設定されていない講座を「第一弾」に設定
+      if (!courseData.category) {
+        const docRef = doc(db, 'courses', courseDoc.id);
+        updatePromises.push(
+          updateDoc(docRef, {
+            category: '第一弾',
+            isActive: false, // 第一弾は非表示に設定
+            updatedAt: serverTimestamp(),
+          })
+        );
+      }
+    });
+
+    await Promise.all(updatePromises);
+    console.log(`${updatePromises.length}件の講座にカテゴリを設定しました`);
+    return updatePromises.length;
+  } catch (error) {
+    console.error('講座カテゴリ一括更新エラー:', error);
+    throw error;
+  }
+};
+
 // すべての申し込みデータを取得
 export const getAllBookings = async () => {
   try {
@@ -363,7 +440,7 @@ export const createCancelLog = async (
       // キャンセル情報
       cancelReason,
       canceledAt: serverTimestamp(),
-      cancelMethod: 'user_interface', // 'user_interface', 'admin_panel', 'system'
+      cancelMethod: bookingData.cancelMethod || 'user_interface', // bookingDataから取得、デフォルトは'user_interface'
 
       // システム情報
       userAgent:
@@ -395,6 +472,8 @@ export const createCancelLog = async (
       bookingData.needsPcRental ? '希望していた' : '持参予定だった'
     );
     console.log('キャンセル理由:', cancelReason);
+    console.log('キャンセル方法:', cancelLogData.cancelMethod);
+    console.log('保存されたデータ:', cancelLogData);
     console.log('キャンセル日時:', new Date().toLocaleString('ja-JP'));
     console.log('==========================');
 
@@ -442,7 +521,9 @@ export const getUserBookingsForEmail = async () => {
       );
 
       userBookingsMap[userKey].bookings.push({
+        courseId: booking.courseId,
         courseTitle: booking.courseTitle,
+        courseCategory: course?.category, // カテゴリ情報を追加
         scheduleDateTime: booking.scheduleDateTime,
         scheduleEndTime: booking.scheduleEndTime || schedule?.endTime,
         createdAt: booking.createdAt,
@@ -489,11 +570,13 @@ export const adminCancelBooking = async (
 
     // キャンセルログを記録（管理者操作として記録）
     try {
-      await createCancelLog({
-        ...bookingData,
-        cancelMethod: 'admin_panel',
-        cancelReason: adminReason,
-      });
+      await createCancelLog(
+        {
+          ...bookingData,
+          cancelMethod: 'admin_panel',
+        },
+        adminReason
+      );
     } catch (logError) {
       console.error(
         'ログ記録は失敗しましたが、キャンセル処理を続行します:',
@@ -577,6 +660,207 @@ export const getCancelLogsByDateRange = async (startDate, endDate) => {
     }));
   } catch (error) {
     console.error('期間指定キャンセルログ取得エラー:', error);
+    throw error;
+  }
+};
+
+// カテゴリー管理機能
+// すべてのカテゴリーを取得
+export const getCategories = async () => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('getCategories: Firestore クエリ開始');
+    }
+
+    // 複合インデックスの問題を回避するため、単一のorderByを使用してクライアント側でソート
+    const q = query(categoriesCollection, orderBy('order', 'asc'));
+    const querySnapshot = await getDocs(q);
+    const categories = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // クライアント側で名前順にもソート
+    categories.sort((a, b) => {
+      if (a.order !== b.order) {
+        return (a.order || 999) - (b.order || 999);
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        'getCategories: Firestoreから取得したカテゴリー数:',
+        categories.length
+      );
+      console.log('getCategories: 取得したカテゴリー:', categories);
+    }
+
+    // データベースにカテゴリーが存在しない場合はデフォルトカテゴリーを返す
+    if (categories.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          'getCategories: カテゴリーが0件のためデフォルトカテゴリーを返します'
+        );
+      }
+      return [
+        { id: 'default-1', name: '第一弾', isActive: false, order: 1 },
+        { id: 'default-2', name: '第二弾', isActive: true, order: 2 },
+      ];
+    }
+
+    return categories;
+  } catch (error) {
+    console.error('カテゴリー取得エラー:', error);
+    // エラー時はデフォルトカテゴリーを返す
+    return [
+      { id: 'default-1', name: '第一弾', isActive: false, order: 1 },
+      { id: 'default-2', name: '第二弾', isActive: true, order: 2 },
+    ];
+  }
+};
+
+// アクティブなカテゴリーのみ取得
+export const getActiveCategories = async () => {
+  try {
+    const allCategories = await getCategories();
+    return allCategories.filter(category => category.isActive !== false);
+  } catch (error) {
+    console.error('アクティブカテゴリー取得エラー:', error);
+    return [];
+  }
+};
+
+// カテゴリーを作成
+export const createCategory = async categoryData => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('createCategory 受信データ:', categoryData);
+    }
+
+    const newCategory = {
+      name: categoryData.name,
+      description: categoryData.description || '',
+      isActive:
+        categoryData.isActive !== undefined ? categoryData.isActive : true,
+      order: categoryData.order || 999,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Firestoreに保存するデータ:', newCategory);
+    }
+
+    const docRef = await addDoc(categoriesCollection, newCategory);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('カテゴリーが作成されました:', docRef.id);
+    }
+
+    return docRef.id;
+  } catch (error) {
+    console.error('カテゴリー作成エラー:', error);
+    throw error;
+  }
+};
+
+// カテゴリーを更新
+export const updateCategory = async (categoryId, updates) => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('updateCategory 受信データ:', { categoryId, updates });
+    }
+
+    const categoryRef = doc(db, 'categories', categoryId);
+    const updateData = {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Firestoreに更新するデータ:', updateData);
+    }
+
+    await updateDoc(categoryRef, updateData);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('カテゴリーが更新されました:', categoryId);
+    }
+  } catch (error) {
+    console.error('カテゴリー更新エラー:', error);
+    throw error;
+  }
+};
+
+// カテゴリーを削除
+export const deleteCategory = async categoryId => {
+  try {
+    // まず、このカテゴリーを使用している講座があるかチェック
+    const coursesWithCategory = await getCoursesByCategory(categoryId);
+    if (coursesWithCategory.length > 0) {
+      throw new Error(
+        'このカテゴリーを使用している講座があるため削除できません'
+      );
+    }
+
+    const categoryRef = doc(db, 'categories', categoryId);
+    await deleteDoc(categoryRef);
+    console.log('カテゴリーが削除されました:', categoryId);
+  } catch (error) {
+    console.error('カテゴリー削除エラー:', error);
+    throw error;
+  }
+};
+
+// 初期カテゴリーデータを作成（初回セットアップ用）
+export const initializeDefaultCategories = async (force = false) => {
+  try {
+    console.log('initializeDefaultCategories: 開始');
+
+    const existingCategories = await getDocs(categoriesCollection);
+    console.log(
+      'initializeDefaultCategories: 既存カテゴリー数:',
+      existingCategories.size
+    );
+
+    if (!existingCategories.empty && !force) {
+      const existingNames = [];
+      existingCategories.forEach(doc => {
+        existingNames.push(doc.data().name);
+      });
+      console.log(
+        'initializeDefaultCategories: 既存カテゴリー名:',
+        existingNames
+      );
+      console.log('カテゴリーは既に存在します');
+      return;
+    }
+
+    console.log('initializeDefaultCategories: 新規カテゴリーを作成します');
+
+    const defaultCategories = [
+      {
+        name: '第一弾',
+        description: '第一弾の研修講座',
+        isActive: false,
+        order: 1,
+      },
+      {
+        name: '第二弾',
+        description: '第二弾の研修講座',
+        isActive: true,
+        order: 2,
+      },
+    ];
+
+    const promises = defaultCategories.map(category =>
+      createCategory(category)
+    );
+    await Promise.all(promises);
+    console.log('デフォルトカテゴリーが作成されました');
+  } catch (error) {
+    console.error('デフォルトカテゴリー作成エラー:', error);
     throw error;
   }
 };

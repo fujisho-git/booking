@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -23,6 +23,7 @@ import {
   CircularProgress,
   Tabs,
   Tab,
+  TablePagination,
   Accordion,
   AccordionSummary,
   AccordionDetails,
@@ -60,12 +61,14 @@ import {
   getBookingStatistics,
   getCourses,
   adminCancelBooking,
+  getCategories,
 } from '../utils/firestore';
 
 const BookingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tabValue, setTabValue] = useState(0);
+  const [tabLoading, setTabLoading] = useState(false);
 
   // 統計データ
   const [statistics, setStatistics] = useState(null);
@@ -73,7 +76,10 @@ const BookingDashboard = () => {
   // 申し込み一覧データ
   const [allBookings, setAllBookings] = useState([]);
   const [filteredBookings, setFilteredBookings] = useState([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [courses, setCourses] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   // 研修日時ごとのデータ
   const [scheduleDetails, setScheduleDetails] = useState([]);
@@ -87,7 +93,14 @@ const BookingDashboard = () => {
     needsPcRental: '',
     dateFrom: '',
     dateTo: '',
+    category: '', // カテゴリフィルターを追加
   });
+
+  // 統計情報用のカテゴリフィルター
+  const [statsCategory, setStatsCategory] = useState('all');
+
+  // 研修日時別詳細用のカテゴリフィルター
+  const [scheduleCategory, setScheduleCategory] = useState('all');
 
   // 管理機能用の状態
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
@@ -96,36 +109,53 @@ const BookingDashboard = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  // coursesをMapに変換してO(1)での検索を可能にする
+  const coursesMap = useMemo(() => {
+    const map = new Map();
+    courses.forEach(course => {
+      map.set(course.id, course);
+    });
+    return map;
+  }, [courses]);
 
-  useEffect(() => {
-    applyFilters();
-  }, [allBookings, filters]); // applyFiltersは内部でstateのみを使用するため依存関係に含めない
+  // 利用可能なカテゴリを取得（動的）- タブ0、1、2で計算
+  const availableCategories = useMemo(() => {
+    if (tabValue !== 0 && tabValue !== 1 && tabValue !== 2) {
+      return []; // 必要ないタブでは空配列を返す
+    }
+    // データベースから取得したカテゴリーを使用
+    return categories.map(category => category.name);
+  }, [categories, tabValue]);
 
-  useEffect(() => {
-    processScheduleDetails();
-  }, [allBookings, courses]); // processScheduleDetailsは内部でstateのみを使用するため依存関係に含めない
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [bookingsData, statisticsData, coursesData] = await Promise.all([
-        getAllBookings(),
-        getBookingStatistics(),
-        getCourses(),
-      ]);
+      // データベースクエリを並列実行して高速化
+      const [bookingsData, statisticsData, coursesData, categoriesData] =
+        await Promise.all([
+          getAllBookings(),
+          getBookingStatistics(),
+          getCourses(),
+          getCategories(),
+        ]);
 
       setAllBookings(bookingsData);
       setStatistics(statisticsData);
       setCourses(coursesData);
+      setCategories(categoriesData);
 
-      // デバッグログ
-      console.log('統計データ:', statisticsData);
-      console.log('totalApplicants:', statisticsData?.totalApplicants);
+      // 統計データが更新された時にfilteredStatisticsも初期化
+      setFilteredStatistics(statisticsData);
+
+      // デバッグログ（本番環境では削除推奨）
+      if (process.env.NODE_ENV === 'development') {
+        console.log('統計データ:', statisticsData);
+        console.log('totalApplicants:', statisticsData?.totalApplicants);
+        console.log('取得したコース数:', coursesData?.length);
+        console.log('取得した申込数:', bookingsData?.length);
+      }
     } catch (err) {
       const errorMessage = `データの取得に失敗しました: ${err.message || '不明なエラー'}`;
       setError(errorMessage);
@@ -138,9 +168,14 @@ const BookingDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const processScheduleDetails = () => {
+  const processScheduleDetails = useCallback(() => {
+    // タブ0（統計情報）またはタブ2（研修日時別詳細）でのみ実行
+    if (tabValue !== 0 && tabValue !== 2) {
+      return; // 他のタブではスケジュール詳細の処理をスキップ
+    }
+
     const scheduleMap = new Map();
 
     // 各スケジュールごとに申し込み者をグループ化
@@ -155,6 +190,8 @@ const BookingDashboard = () => {
           bookings: [],
           participantCount: 0,
           pcRentalCount: 0,
+          // 日時ソート用の数値を事前計算
+          sortTime: booking.scheduleDateTime.toDate().getTime(),
         });
       }
 
@@ -166,24 +203,32 @@ const BookingDashboard = () => {
       }
     });
 
-    // 日時順でソート
+    // 日時順でソート（dayjs を使わず数値比較で高速化）
     const sortedSchedules = Array.from(scheduleMap.values()).sort((a, b) => {
-      return dayjs(a.scheduleDateTime.toDate()).diff(
-        dayjs(b.scheduleDateTime.toDate())
-      );
+      return a.sortTime - b.sortTime;
     });
 
     setScheduleDetails(sortedSchedules);
-  };
+  }, [allBookings, tabValue]);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
+    // タブ1（申込者一覧）でのみフィルタリングを実行
+    if (tabValue !== 1) {
+      return; // 他のタブではフィルタリングをスキップ
+    }
+
     let filtered = [...allBookings];
 
     // 講座でフィルター
     if (filters.courseId) {
-      filtered = filtered.filter(
-        booking => booking.courseId === filters.courseId
-      );
+      // 選択された講座IDから講座名を取得
+      const selectedCourse = courses.find(c => c.id === filters.courseId);
+      if (selectedCourse) {
+        // 同じ名前の全ての講座の申込を表示
+        filtered = filtered.filter(
+          booking => booking.courseTitle === selectedCourse.title
+        );
+      }
     }
 
     // スケジュールでフィルター
@@ -215,23 +260,32 @@ const BookingDashboard = () => {
       filtered = filtered.filter(booking => booking.needsPcRental === needsPc);
     }
 
-    // 申し込み日でフィルター
+    // 申し込み日でフィルター（高速化：数値比較）
     if (filters.dateFrom) {
-      filtered = filtered.filter(booking =>
-        dayjs(booking.createdAt.toDate()).isAfter(dayjs(filters.dateFrom))
+      const fromTime = new Date(filters.dateFrom).getTime();
+      filtered = filtered.filter(
+        booking => booking.createdAt.toDate().getTime() > fromTime
       );
     }
 
     if (filters.dateTo) {
-      filtered = filtered.filter(booking =>
-        dayjs(booking.createdAt.toDate()).isBefore(
-          dayjs(filters.dateTo).add(1, 'day')
-        )
+      const toTime = new Date(filters.dateTo).getTime() + 86400000; // +1日
+      filtered = filtered.filter(
+        booking => booking.createdAt.toDate().getTime() < toTime
       );
     }
 
+    // カテゴリでフィルター
+    if (filters.category) {
+      filtered = filtered.filter(booking => {
+        const course = coursesMap.get(booking.courseId);
+        return course?.category === filters.category;
+      });
+    }
+
     setFilteredBookings(filtered);
-  };
+    setPage(0); // フィルター変更時に先頭ページへ
+  }, [allBookings, filters, coursesMap, tabValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleFilterChange = (field, value) => {
     setFilters(prev => ({
@@ -242,7 +296,7 @@ const BookingDashboard = () => {
     }));
   };
 
-  const getAvailableSchedules = () => {
+  const getAvailableSchedules = useCallback(() => {
     if (!filters.courseId) {
       // 講座が選択されていない場合は、全ての講座の全スケジュールを返す
       const allSchedules = [];
@@ -252,17 +306,125 @@ const BookingDashboard = () => {
             ...schedule,
             courseId: course.id,
             courseTitle: course.title,
+            // ソート用の数値を事前計算
+            sortTime: schedule.dateTime.toDate().getTime(),
           });
         });
       });
-      // 日時順でソート
-      return allSchedules.sort((a, b) =>
-        dayjs(a.dateTime.toDate()).diff(dayjs(b.dateTime.toDate()))
-      );
+      // 日時順でソート（高速化）
+      return allSchedules.sort((a, b) => a.sortTime - b.sortTime);
     }
     const course = courses.find(c => c.id === filters.courseId);
     return course?.schedules || [];
-  };
+  }, [courses, filters.courseId]);
+
+  // 研修日時別詳細をカテゴリ別にフィルタリング（メモ化）
+  // タブ2（研修日時別詳細）でのみ計算
+  const filteredScheduleDetails = useMemo(() => {
+    if (tabValue !== 2) {
+      return []; // 他のタブでは空配列を返して計算をスキップ
+    }
+
+    if (scheduleCategory === 'all') {
+      return scheduleDetails;
+    }
+
+    return scheduleDetails.filter(schedule => {
+      const course = coursesMap.get(schedule.courseId);
+      return course?.category === scheduleCategory;
+    });
+  }, [scheduleDetails, scheduleCategory, coursesMap, tabValue]);
+
+  // 日時別申し込み状況をカテゴリ別にフィルタリング（統計タブ用）
+  // タブ0（統計情報）でのみ計算
+  const filteredScheduleDetailsForStats = useMemo(() => {
+    if (tabValue !== 0) {
+      return []; // 他のタブでは空配列を返して計算をスキップ
+    }
+
+    if (statsCategory === 'all') {
+      return scheduleDetails;
+    }
+    return scheduleDetails.filter(schedule => {
+      const course = coursesMap.get(schedule.courseId);
+      return course?.category === statsCategory;
+    });
+  }, [scheduleDetails, statsCategory, coursesMap, tabValue]);
+
+  // 統計情報をカテゴリ別にフィルタリング（メモ化・遅延実行）
+  const [filteredStatistics, setFilteredStatistics] = useState(statistics);
+
+  useEffect(() => {
+    // 統計タブでない場合は元のデータをそのまま使用
+    if (tabValue !== 0) {
+      setFilteredStatistics(statistics);
+      return;
+    }
+
+    // 統計計算を遅延実行（UIブロックを防ぐ）
+    const timeoutId = setTimeout(() => {
+      if (!statistics || statsCategory === 'all') {
+        setFilteredStatistics(statistics);
+        return;
+      }
+
+      // カテゴリでフィルタリングされた申し込みを取得
+      const filteredBookings = allBookings.filter(booking => {
+        const course = coursesMap.get(booking.courseId);
+        return course?.category === statsCategory;
+      });
+
+      // 統計を再計算
+      const totalBookings = filteredBookings.length;
+      const uniqueUsers = new Set(
+        filteredBookings.map(
+          booking => `${booking.companyName}-${booking.fullName}`
+        )
+      ).size;
+      const pcRentals = filteredBookings.filter(
+        booking => booking.needsPcRental
+      ).length;
+
+      // 講座別統計（元の形式に合わせて配列形式で作成）
+      const courseStatsMap = {};
+      filteredBookings.forEach(booking => {
+        if (!courseStatsMap[booking.courseTitle]) {
+          courseStatsMap[booking.courseTitle] = {
+            courseId: booking.courseId,
+            courseTitle: booking.courseTitle,
+            totalBookings: 0,
+            uniqueApplicants: new Set(),
+            pcRentals: 0,
+            scheduleStats: [],
+          };
+        }
+        courseStatsMap[booking.courseTitle].totalBookings++;
+        courseStatsMap[booking.courseTitle].uniqueApplicants.add(
+          `${booking.companyName}-${booking.fullName}`
+        );
+        if (booking.needsPcRental) {
+          courseStatsMap[booking.courseTitle].pcRentals++;
+        }
+      });
+
+      // Set を数値に変換し、配列形式に変換
+      const courseStats = Object.values(courseStatsMap).map(stat => ({
+        ...stat,
+        uniqueApplicants: stat.uniqueApplicants.size,
+      }));
+
+      setFilteredStatistics({
+        totalBookings,
+        uniqueUsers,
+        pcRentals,
+        courseStats,
+        totalApplicants: uniqueUsers,
+        totalPcRentals: pcRentals,
+      });
+    }, 300); // 300ms遅延で統計計算
+
+    return () => clearTimeout(timeoutId);
+  }, [statistics, statsCategory, allBookings, coursesMap, tabValue]);
 
   // 管理機能のハンドラー
   const handleCancelBooking = booking => {
@@ -338,10 +500,12 @@ const BookingDashboard = () => {
     document.body.removeChild(link);
   };
 
-  const exportScheduleDetailsToCSV = () => {
+  const exportScheduleDetailsToCSV = useCallback(() => {
+    // タブ2（研修日時別詳細）でのみ実行される関数のため、
+    // 実行時にtabValueのチェックは不要（ボタンがそのタブでのみ表示されるため）
     const csvData = [];
 
-    scheduleDetails.forEach(schedule => {
+    filteredScheduleDetails.forEach(schedule => {
       schedule.bookings.forEach((booking, index) => {
         csvData.push({
           講座名: schedule.courseTitle,
@@ -377,7 +541,7 @@ const BookingDashboard = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }, [filteredScheduleDetails]);
 
   const formatDateTime = timestamp => {
     return dayjs(timestamp.toDate()).format('YYYY/MM/DD HH:mm');
@@ -392,8 +556,92 @@ const BookingDashboard = () => {
       needsPcRental: '',
       dateFrom: '',
       dateTo: '',
+      category: '', // カテゴリもクリア
     });
   };
+
+  // 重複する講座名を排除した講座リストを取得
+  const uniqueCourses = useMemo(() => {
+    const courseMap = new Map();
+    courses.forEach(course => {
+      if (!courseMap.has(course.title)) {
+        courseMap.set(course.title, course);
+      }
+    });
+    return Array.from(courseMap.values()).sort((a, b) =>
+      a.title.localeCompare(b.title)
+    );
+  }, [courses]);
+
+  // ページネーション用のデータをメモ化
+  const paginatedBookings = useMemo(() => {
+    if (tabValue !== 1) return [];
+    return filteredBookings.slice(
+      page * rowsPerPage,
+      page * rowsPerPage + rowsPerPage
+    );
+  }, [filteredBookings, page, rowsPerPage, tabValue]);
+
+  // useEffect hooks - すべての関数定義の後に配置
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // データ更新を制限（30秒間隔）
+  const [lastFetchTime, setLastFetchTime] = useState(0);
+  const refreshData = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastFetchTime < 30000) {
+      console.log('データ更新をスキップしました（30秒以内の再取得）');
+      return;
+    }
+    setLastFetchTime(now);
+    await fetchData();
+  }, [fetchData, lastFetchTime]);
+
+  // タブ切り替え時の遅延実行（重い処理を分離）
+  useEffect(() => {
+    if (allBookings.length === 0) return;
+
+    // タブ切り替え時にローディング開始
+    setTabLoading(true);
+
+    // タブ切り替え直後は処理をスキップし、少し遅延させる
+    const timeoutId = setTimeout(() => {
+      if (tabValue === 0 || tabValue === 2) {
+        processScheduleDetails();
+      } else if (tabValue === 1) {
+        applyFilters();
+      }
+      setTabLoading(false); // 処理完了
+    }, 50); // 50ms遅延でUIの応答性を優先
+
+    return () => clearTimeout(timeoutId);
+  }, [tabValue]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // データ変更時の処理（タブ切り替えとは分離）
+  useEffect(() => {
+    if (allBookings.length > 0) {
+      const timeoutId = setTimeout(() => {
+        if (tabValue === 0 || tabValue === 2) {
+          processScheduleDetails();
+        } else if (tabValue === 1) {
+          applyFilters();
+        }
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [allBookings.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // フィルター変更時の処理（データ変更・タブ切り替えとは分離）
+  useEffect(() => {
+    if (allBookings.length > 0 && tabValue === 1) {
+      const timeoutId = setTimeout(() => {
+        applyFilters();
+      }, 200); // フィルターはさらに遅延
+      return () => clearTimeout(timeoutId);
+    }
+  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -423,7 +671,11 @@ const BookingDashboard = () => {
         <Typography variant='h4' component='h1'>
           申込者管理ダッシュボード
         </Typography>
-        <Button variant='outlined' startIcon={<Refresh />} onClick={fetchData}>
+        <Button
+          variant='outlined'
+          startIcon={<Refresh />}
+          onClick={refreshData}
+        >
           更新
         </Button>
       </Box>
@@ -438,9 +690,38 @@ const BookingDashboard = () => {
         <Tab label='研修日時別詳細' />
       </Tabs>
 
+      {/* タブローディング表示 */}
+      {tabLoading && (
+        <Box display='flex' justifyContent='center' py={2}>
+          <CircularProgress size={24} />
+          <Typography variant='body2' sx={{ ml: 1 }}>
+            データを処理中...
+          </Typography>
+        </Box>
+      )}
+
       {/* 統計情報タブ */}
       {tabValue === 0 && (
         <>
+          {/* 統計情報用カテゴリフィルター */}
+          <Box display='flex' justifyContent='flex-end' mb={3}>
+            <FormControl size='small' sx={{ minWidth: 150 }}>
+              <InputLabel>カテゴリ</InputLabel>
+              <Select
+                value={statsCategory}
+                onChange={e => setStatsCategory(e.target.value)}
+                label='カテゴリ'
+              >
+                <MenuItem value='all'>すべて</MenuItem>
+                {availableCategories.map(category => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
           {!statistics ? (
             <Box textAlign='center' py={4}>
               <Alert severity='warning'>
@@ -480,7 +761,7 @@ const BookingDashboard = () => {
                         color='primary'
                         sx={{ fontWeight: 'bold', mb: 1 }}
                       >
-                        {statistics.totalBookings}
+                        {filteredStatistics?.totalBookings || 0}
                       </Typography>
                       <Typography variant='body2' color='text.secondary'>
                         件
@@ -518,7 +799,7 @@ const BookingDashboard = () => {
                         color='info.main'
                         sx={{ fontWeight: 'bold', mb: 1 }}
                       >
-                        {statistics.totalApplicants || 0}
+                        {filteredStatistics?.totalApplicants || 0}
                       </Typography>
                       <Typography variant='body2' color='text.secondary'>
                         名
@@ -556,7 +837,7 @@ const BookingDashboard = () => {
                         color='secondary'
                         sx={{ fontWeight: 'bold', mb: 1 }}
                       >
-                        {statistics.totalPcRentals}
+                        {filteredStatistics?.totalPcRentals || 0}
                       </Typography>
                       <Typography variant='body2' color='text.secondary'>
                         件
@@ -594,7 +875,7 @@ const BookingDashboard = () => {
                         color='success.main'
                         sx={{ fontWeight: 'bold', mb: 1 }}
                       >
-                        {statistics.courseStats.length}
+                        {filteredStatistics?.courseStats?.length || 0}
                       </Typography>
                       <Typography variant='body2' color='text.secondary'>
                         講座
@@ -676,66 +957,70 @@ const BookingDashboard = () => {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {statistics.courseStats.map(courseStat => (
-                                <TableRow
-                                  key={courseStat.courseId}
-                                  sx={{
-                                    '&:nth-of-type(odd)': {
-                                      backgroundColor: 'action.hover',
-                                    },
-                                    '&:hover': {
-                                      backgroundColor: 'action.selected',
-                                    },
-                                  }}
-                                >
-                                  <TableCell
-                                    sx={{ py: 2, fontSize: '0.85rem' }}
+                              {(filteredStatistics.courseStats || []).map(
+                                courseStat => (
+                                  <TableRow
+                                    key={courseStat.courseId}
+                                    sx={{
+                                      '&:nth-of-type(odd)': {
+                                        backgroundColor: 'action.hover',
+                                      },
+                                      '&:hover': {
+                                        backgroundColor: 'action.selected',
+                                      },
+                                    }}
                                   >
-                                    {courseStat.courseTitle}
-                                  </TableCell>
-                                  <TableCell align='center' sx={{ py: 2 }}>
-                                    <Typography
-                                      variant='body1'
-                                      color='primary'
-                                      sx={{ fontWeight: 'bold' }}
+                                    <TableCell
+                                      sx={{ py: 2, fontSize: '0.85rem' }}
                                     >
-                                      {courseStat.totalBookings}件
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell align='center' sx={{ py: 2 }}>
-                                    <Typography
-                                      variant='body1'
-                                      color='info.main'
-                                      sx={{ fontWeight: 'bold' }}
-                                    >
-                                      {courseStat.uniqueApplicants || 0}名
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell align='center' sx={{ py: 2 }}>
-                                    <Typography
-                                      variant='body1'
-                                      color='secondary'
-                                      sx={{ fontWeight: 'bold' }}
-                                    >
-                                      {courseStat.pcRentals}件
-                                    </Typography>
-                                  </TableCell>
-                                  <TableCell align='center' sx={{ py: 2 }}>
-                                    <Typography
-                                      variant='body1'
-                                      color='success.main'
-                                      sx={{ fontWeight: 'bold' }}
-                                    >
-                                      {courseStat.scheduleStats.length}回
-                                    </Typography>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                                      {courseStat.courseTitle}
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      <Typography
+                                        variant='body1'
+                                        color='primary'
+                                        sx={{ fontWeight: 'bold' }}
+                                      >
+                                        {courseStat.totalBookings}件
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      <Typography
+                                        variant='body1'
+                                        color='info.main'
+                                        sx={{ fontWeight: 'bold' }}
+                                      >
+                                        {courseStat.uniqueApplicants || 0}名
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      <Typography
+                                        variant='body1'
+                                        color='secondary'
+                                        sx={{ fontWeight: 'bold' }}
+                                      >
+                                        {courseStat.pcRentals}件
+                                      </Typography>
+                                    </TableCell>
+                                    <TableCell align='center' sx={{ py: 2 }}>
+                                      <Typography
+                                        variant='body1'
+                                        color='success.main'
+                                        sx={{ fontWeight: 'bold' }}
+                                      >
+                                        {courseStat.scheduleStats?.length || 0}
+                                        回
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              )}
                             </TableBody>
                           </Table>
                         </TableContainer>
 
-                        {statistics.courseStats.length === 0 && (
+                        {(filteredStatistics.courseStats || []).length ===
+                          0 && (
                           <Box textAlign='center' py={4}>
                             <Typography color='text.secondary' variant='body1'>
                               申し込みのある講座がありません
@@ -816,7 +1101,7 @@ const BookingDashboard = () => {
                               </TableRow>
                             </TableHead>
                             <TableBody>
-                              {scheduleDetails.map(schedule => {
+                              {filteredScheduleDetailsForStats.map(schedule => {
                                 // 定員情報を取得（coursesからスケジュールの定員を探す）
                                 const course = courses.find(
                                   c => c.id === schedule.courseId
@@ -903,7 +1188,7 @@ const BookingDashboard = () => {
                           </Table>
                         </TableContainer>
 
-                        {scheduleDetails.length === 0 && (
+                        {filteredScheduleDetailsForStats.length === 0 && (
                           <Box textAlign='center' py={4}>
                             <Typography color='text.secondary' variant='body1'>
                               申し込みのあるスケジュールがありません
@@ -932,6 +1217,27 @@ const BookingDashboard = () => {
               </Box>
 
               <Grid container spacing={2}>
+                <Grid item xs={12} md={2}>
+                  <FormControl fullWidth size='small' sx={{ minWidth: 120 }}>
+                    <InputLabel>カテゴリ</InputLabel>
+                    <Select
+                      value={filters.category}
+                      onChange={e =>
+                        handleFilterChange('category', e.target.value)
+                      }
+                      label='カテゴリ'
+                      sx={{ minWidth: 120 }}
+                    >
+                      <MenuItem value=''>すべて</MenuItem>
+                      {availableCategories.map(category => (
+                        <MenuItem key={category} value={category}>
+                          {category}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+
                 <Grid item xs={12} md={3}>
                   <FormControl fullWidth size='small' sx={{ minWidth: 200 }}>
                     <InputLabel>講座</InputLabel>
@@ -944,7 +1250,7 @@ const BookingDashboard = () => {
                       sx={{ minWidth: 200 }}
                     >
                       <MenuItem value=''>すべて</MenuItem>
-                      {courses.map(course => (
+                      {uniqueCourses.map(course => (
                         <MenuItem key={course.id} value={course.id}>
                           {course.title}
                         </MenuItem>
@@ -953,7 +1259,7 @@ const BookingDashboard = () => {
                   </FormControl>
                 </Grid>
 
-                <Grid item xs={12} md={2}>
+                <Grid item xs={12} md={2.5}>
                   <FormControl fullWidth size='small' sx={{ minWidth: 150 }}>
                     <InputLabel>開催日時</InputLabel>
                     <Select
@@ -994,7 +1300,7 @@ const BookingDashboard = () => {
                   </FormControl>
                 </Grid>
 
-                <Grid item xs={12} md={2}>
+                <Grid item xs={12} md={1.5}>
                   <TextField
                     fullWidth
                     size='small'
@@ -1007,7 +1313,7 @@ const BookingDashboard = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12} md={2}>
+                <Grid item xs={12} md={1.5}>
                   <TextField
                     fullWidth
                     size='small'
@@ -1086,7 +1392,7 @@ const BookingDashboard = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {filteredBookings.map(booking => (
+                    {paginatedBookings.map(booking => (
                       <TableRow key={booking.id}>
                         <TableCell>
                           {formatDateTime(booking.createdAt)}
@@ -1122,6 +1428,18 @@ const BookingDashboard = () => {
                   </TableBody>
                 </Table>
               </TableContainer>
+              <TablePagination
+                component='div'
+                count={filteredBookings.length}
+                page={page}
+                onPageChange={(e, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={e => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={[25, 50, 100, 200]}
+              />
 
               {filteredBookings.length === 0 && (
                 <Box textAlign='center' py={4}>
@@ -1138,6 +1456,25 @@ const BookingDashboard = () => {
       {/* 研修日時別詳細タブ */}
       {tabValue === 2 && (
         <>
+          {/* 研修日時別詳細用カテゴリフィルター */}
+          <Box display='flex' justifyContent='flex-end' mb={3}>
+            <FormControl size='small' sx={{ minWidth: 150 }}>
+              <InputLabel>カテゴリ</InputLabel>
+              <Select
+                value={scheduleCategory}
+                onChange={e => setScheduleCategory(e.target.value)}
+                label='カテゴリ'
+              >
+                <MenuItem value='all'>すべて</MenuItem>
+                {availableCategories.map(category => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Box
@@ -1149,7 +1486,8 @@ const BookingDashboard = () => {
                 <Box display='flex' alignItems='center'>
                   <Schedule sx={{ mr: 1 }} />
                   <Typography variant='h6'>
-                    研修日時別参加者詳細 ({scheduleDetails.length}回の研修)
+                    研修日時別参加者詳細 ({filteredScheduleDetails.length}
+                    回の研修)
                   </Typography>
                 </Box>
                 <Button
@@ -1167,7 +1505,7 @@ const BookingDashboard = () => {
             </CardContent>
           </Card>
 
-          {scheduleDetails.length === 0 ? (
+          {filteredScheduleDetails.length === 0 ? (
             <Card>
               <CardContent>
                 <Box textAlign='center' py={4}>
@@ -1179,7 +1517,7 @@ const BookingDashboard = () => {
             </Card>
           ) : (
             <Box>
-              {scheduleDetails.map(schedule => (
+              {filteredScheduleDetails.map(schedule => (
                 <Accordion
                   key={`${schedule.courseId}-${schedule.scheduleId}`}
                   sx={{ mb: 2 }}

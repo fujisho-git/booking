@@ -1,0 +1,24 @@
+{
+  "name": "training-schedule-app-mcp",
+  "description": "Playwright MCP server for training schedule application testing",
+  "server": {
+    "port": 3001,
+    "host": "localhost"
+  },
+  "playwright": {
+    "configPath": "./playwright.config.mjs",
+    "browsers": ["chromium", "firefox", "webkit"],
+    "headless": true,
+    "timeout": 30000
+  },
+  "features": {
+    "screenshots": true,
+    "videos": false,
+    "traces": true,
+    "debugging": true
+  },
+  "testPatterns": [
+    "tests/**/*.spec.mjs"
+  ],
+  "baseURL": "http://localhost:5174"
+}

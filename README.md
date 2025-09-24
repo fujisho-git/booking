@@ -126,6 +126,57 @@ npm run dev
 4. 保存して講座を公開
 5. 申し込み状況をリアルタイムで確認
 
+## テスト
+
+E2EテストにはPlaywrightを使用しています。
+
+### テスト実行
+
+```bash
+# すべてのテストを実行
+npm test
+
+# UIモードでテストを実行
+npm run test:ui
+
+# ヘッドモードでテストを実行（ブラウザが表示される）
+npm run test:headed
+
+# デバッグモードでテストを実行
+npm run test:debug
+
+# テストレポートを表示
+npm run test:report
+```
+
+### Playwright MCP (Model Context Protocol)
+
+AIモデルとの統合によるブラウザ自動化のためのMCPサーバーを導入しています。
+
+```bash
+# MCPサーバーを起動
+npm run mcp:server
+
+# 特定のポートでMCPサーバーを起動
+npm run mcp:start
+```
+
+#### MCP設定
+
+MCPクライアント（Claude Desktop等）で使用する場合の設定例：
+
+```json
+{
+  "mcpServers": {
+    "training-schedule-playwright": {
+      "command": "npm",
+      "args": ["run", "mcp:server"],
+      "cwd": "/path/to/training-schedule-app"
+    }
+  }
+}
+```
+
 ## 特徴
 
 - **レスポンシブデザイン**: PC・タブレット・スマートフォンに対応
@@ -133,6 +184,7 @@ npm run dev
 - **バリデーション**: フォーム入力の詳細なエラーチェック
 - **ユーザビリティ**: 直感的な操作インターフェース
 - **ログイン不要**: 一般ユーザーは登録なしで申し込み可能
+- **AI統合**: Playwright MCPによるインテリジェントなテスト自動化
 
 ## ライセンス
 

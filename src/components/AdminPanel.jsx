@@ -47,6 +47,7 @@ import {
   Logout,
   Dashboard,
   School,
+  Category,
   Email,
   FilterList,
 } from '@mui/icons-material';
@@ -58,12 +59,19 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from 'dayjs';
 import {
   getCourses,
+  getCoursesByCategory,
   createCourse,
   updateCourse,
+  updateCoursesWithCategory,
   getBookingsCount,
   getCancelLogs,
   getCancelStatistics,
   getUserBookingsForEmail,
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  initializeDefaultCategories,
 } from '../utils/firestore';
 
 const AdminPanel = () => {
@@ -83,10 +91,25 @@ const AdminPanel = () => {
 
   // メール送信用タブのフィルター条件
   const [emailFilters, setEmailFilters] = useState({
+    category: '',
     courseTitle: '',
     scheduleDateTime: '',
     companyName: '',
     fullName: '',
+  });
+
+  // 講座管理のカテゴリフィルター
+  const [courseCategory, setCourseCategory] = useState('all');
+
+  // カテゴリー管理
+  const [categories, setCategories] = useState([]);
+  const [categoryDialog, setCategoryDialog] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+    isActive: true,
+    order: 1,
   });
 
   const {
@@ -97,6 +120,8 @@ const AdminPanel = () => {
   } = useForm({
     defaultValues: {
       title: '',
+      category: '第二弾',
+      isActive: true,
       schedules: [
         {
           id: Date.now().toString(),
@@ -116,26 +141,60 @@ const AdminPanel = () => {
 
   useEffect(() => {
     fetchCourses();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
-    if (tabValue === 2) {
+    if (tabValue === 1) {
+      fetchCourses(courseCategory);
+    }
+  }, [courseCategory, tabValue]);
+
+  useEffect(() => {
+    if (tabValue === 3) {
       // キャンセルログタブが選択された時
       fetchCancelLogs();
-    } else if (tabValue === 3) {
+    } else if (tabValue === 4) {
       // ユーザー申し込み一覧タブが選択された時
       fetchUserBookings();
+      // メール送信用タブでも講座情報が必要
+      if (courses.length === 0) {
+        fetchCourses('all');
+      }
     }
-  }, [tabValue]);
+  }, [tabValue]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     applyEmailFilters();
   }, [userBookings, emailFilters]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchCourses = async () => {
+  const fetchCategories = async () => {
+    try {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('fetchCategories: カテゴリー取得開始');
+      }
+      const categoriesData = await getCategories();
+      if (process.env.NODE_ENV === 'development') {
+        console.log('fetchCategories: 取得したカテゴリー:', categoriesData);
+      }
+      setCategories(categoriesData);
+    } catch (error) {
+      console.error('カテゴリーの取得に失敗しました:', error);
+      // エラー時はデフォルトカテゴリーを設定
+      setCategories([
+        { id: 'default-1', name: '第一弾', isActive: false, order: 1 },
+        { id: 'default-2', name: '第二弾', isActive: true, order: 2 },
+      ]);
+    }
+  };
+
+  const fetchCourses = async (category = 'all') => {
     try {
       setLoading(true);
-      const coursesData = await getCourses();
+      const coursesData =
+        category === 'all'
+          ? await getCourses()
+          : await getCoursesByCategory(category);
 
       // 各講座の申し込み状況を取得
       const coursesWithBookings = await Promise.all(
@@ -174,6 +233,8 @@ const AdminPanel = () => {
       setEditingCourse(course);
       reset({
         title: course.title,
+        category: course.category || '第二弾',
+        isActive: course.isActive !== undefined ? course.isActive : true,
         schedules: course.schedules?.map(schedule => ({
           ...schedule,
           dateTime: dayjs(schedule.dateTime.toDate()),
@@ -194,6 +255,8 @@ const AdminPanel = () => {
       setEditingCourse(null);
       reset({
         title: '',
+        category: '第二弾',
+        isActive: true,
         schedules: [
           {
             id: Date.now().toString(),
@@ -211,7 +274,20 @@ const AdminPanel = () => {
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingCourse(null);
-    reset();
+    reset({
+      title: '',
+      category: '第二弾',
+      isActive: true,
+      schedules: [
+        {
+          id: Date.now().toString(),
+          dateTime: dayjs().add(1, 'day'),
+          endTime: dayjs().add(1, 'day').add(2, 'hour'),
+          capacity: 10,
+          pcRentalSlots: 5,
+        },
+      ],
+    });
   };
 
   const onSubmit = async data => {
@@ -221,6 +297,8 @@ const AdminPanel = () => {
 
       const courseData = {
         title: data.title.trim(),
+        category: data.category,
+        isActive: data.isActive,
         schedules: data.schedules.map(schedule => ({
           id: schedule.id || Date.now().toString() + Math.random(),
           dateTime: schedule.dateTime.toDate(),
@@ -236,7 +314,7 @@ const AdminPanel = () => {
         await createCourse(courseData);
       }
 
-      await fetchCourses();
+      await fetchCourses(courseCategory);
       handleCloseDialog();
     } catch (err) {
       setError('講座の保存に失敗しました');
@@ -294,6 +372,151 @@ const AdminPanel = () => {
     }
   };
 
+  // 既存講座にカテゴリを一括設定
+  const handleUpdateCategories = async () => {
+    try {
+      setLoading(true);
+      const updatedCount = await updateCoursesWithCategory();
+      if (updatedCount > 0) {
+        alert(`${updatedCount}件の講座にカテゴリを設定しました。`);
+        // 講座データを再取得
+        await fetchCourses(courseCategory);
+      } else {
+        alert('すべての講座にカテゴリが設定済みです。');
+      }
+    } catch (error) {
+      console.error('カテゴリ設定エラー:', error);
+      setError('カテゴリの設定に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // カテゴリー管理関数
+  const handleCategoryDialog = (category = null) => {
+    if (category) {
+      setEditingCategory(category);
+      setCategoryForm({
+        name: category.name,
+        description: category.description || '',
+        isActive: category.isActive !== false,
+        order: category.order || 1,
+      });
+    } else {
+      setEditingCategory(null);
+      setCategoryForm({
+        name: '',
+        description: '',
+        isActive: true,
+        order: categories.length + 1,
+      });
+    }
+    setCategoryDialog(true);
+  };
+
+  const handleCategorySubmit = async e => {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+
+      // デバッグ用ログ
+      if (process.env.NODE_ENV === 'development') {
+        console.log('カテゴリーフォームデータ:', categoryForm);
+        console.log('編集中のカテゴリー:', editingCategory);
+      }
+
+      if (editingCategory) {
+        // デフォルトカテゴリー（default-1, default-2）の場合は新規作成として扱う
+        if (editingCategory.id.startsWith('default-')) {
+          console.log(
+            'デフォルトカテゴリーを実際のカテゴリーとして新規作成:',
+            editingCategory.id,
+            categoryForm
+          );
+          await createCategory(categoryForm);
+        } else {
+          console.log('カテゴリー更新:', editingCategory.id, categoryForm);
+          await updateCategory(editingCategory.id, categoryForm);
+        }
+      } else {
+        console.log('カテゴリー新規作成:', categoryForm);
+        await createCategory(categoryForm);
+      }
+
+      await fetchCategories();
+      setCategoryDialog(false);
+      setEditingCategory(null);
+      // フォームをリセット
+      setCategoryForm({
+        name: '',
+        description: '',
+        isActive: true,
+        order: 1,
+      });
+    } catch (error) {
+      console.error('カテゴリー操作エラー:', error);
+      setError('カテゴリーの保存に失敗しました');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCategoryDelete = async categoryId => {
+    // デフォルトカテゴリーは削除できない
+    if (categoryId.startsWith('default-')) {
+      setError(
+        'デフォルトカテゴリーは削除できません。編集して実際のカテゴリーとして保存してください。'
+      );
+      return;
+    }
+
+    if (
+      !window.confirm(
+        'このカテゴリーを削除しますか？\n※使用中の講座がある場合は削除できません。'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await deleteCategory(categoryId);
+      await fetchCategories();
+    } catch (error) {
+      console.error('カテゴリー削除エラー:', error);
+      setError(error.message || 'カテゴリーの削除に失敗しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInitializeCategories = async () => {
+    const result = window.confirm(
+      '初期カテゴリーデータを作成しますか？\n\n「OK」: 既存データがない場合のみ作成\n「キャンセル」後にShiftキーを押しながらクリック: 強制的に作成'
+    );
+    if (!result) {
+      return;
+    }
+
+    // Shiftキーが押されている場合は強制モード
+    const force = window.event && window.event.shiftKey;
+
+    try {
+      setLoading(true);
+      console.log('handleInitializeCategories: 初期化開始 (force:', force, ')');
+      await initializeDefaultCategories(force);
+      console.log('handleInitializeCategories: 初期化完了、カテゴリー再取得');
+      await fetchCategories();
+      setError(null);
+      console.log('handleInitializeCategories: 処理完了');
+    } catch (error) {
+      console.error('初期カテゴリー作成エラー:', error);
+      setError('初期カテゴリーの作成に失敗しました: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatDateTime = dateTime => {
     if (dateTime?.toDate) {
       return dayjs(dateTime.toDate()).format('YYYY/MM/DD HH:mm');
@@ -304,6 +527,41 @@ const AdminPanel = () => {
   // メール送信用タブのフィルタリング機能
   const applyEmailFilters = () => {
     let filtered = [...userBookings];
+
+    // デバッグログ
+    if (process.env.NODE_ENV === 'development') {
+      console.log('利用可能なカテゴリ:', getAvailableCategories());
+      console.log('申込データサンプル:', userBookings[0]?.bookings[0]);
+      if (emailFilters.category) {
+        console.log('カテゴリフィルター実行:', emailFilters.category);
+      }
+    }
+
+    // カテゴリでフィルター
+    if (emailFilters.category) {
+      filtered = filtered.filter(user =>
+        user.bookings.some(booking => {
+          // 申込データに含まれるカテゴリ情報を直接使用
+          let category = booking.courseCategory;
+
+          // フォールバック: categoryフィールドがない場合は講座から取得
+          if (!category) {
+            const course = courses.find(c => c.title === booking.courseTitle);
+            category = course?.category;
+          }
+
+          const matches = category === emailFilters.category;
+
+          if (process.env.NODE_ENV === 'development') {
+            console.log(
+              `講座「${booking.courseTitle}」: カテゴリ=${category}, マッチ=${matches}`
+            );
+          }
+
+          return matches;
+        })
+      );
+    }
 
     // 講座でフィルター
     if (emailFilters.courseTitle) {
@@ -358,6 +616,7 @@ const AdminPanel = () => {
 
   const clearEmailFilters = () => {
     setEmailFilters({
+      category: '',
       courseTitle: '',
       scheduleDateTime: '',
       companyName: '',
@@ -374,6 +633,27 @@ const AdminPanel = () => {
       });
     });
     return Array.from(courseTitles).sort();
+  };
+
+  // 利用可能なカテゴリを取得（メール送信用）
+  const getAvailableCategories = () => {
+    const categories = new Set();
+    // 申込データから直接カテゴリを取得
+    userBookings.forEach(user => {
+      user.bookings.forEach(booking => {
+        if (booking.courseCategory) {
+          categories.add(booking.courseCategory);
+        } else {
+          // 既存データでcategoryフィールドがない場合のフォールバック
+          // 講座タイトルから講座を検索してカテゴリを取得
+          const course = courses.find(c => c.title === booking.courseTitle);
+          if (course?.category) {
+            categories.add(course.category);
+          }
+        }
+      });
+    });
+    return Array.from(categories).sort();
   };
 
   // 利用可能な開催日時を取得
@@ -434,6 +714,7 @@ const AdminPanel = () => {
       >
         <Tab icon={<Dashboard />} label='申込者管理' iconPosition='start' />
         <Tab icon={<School />} label='講座管理' iconPosition='start' />
+        <Tab icon={<Category />} label='カテゴリー管理' iconPosition='start' />
         <Tab icon={<Cancel />} label='キャンセルログ' iconPosition='start' />
         <Tab icon={<Email />} label='メール送信用' iconPosition='start' />
       </Tabs>
@@ -441,8 +722,116 @@ const AdminPanel = () => {
       {/* 申込者管理タブ */}
       {tabValue === 0 && <BookingDashboard />}
 
-      {/* キャンセルログタブ */}
+      {/* カテゴリー管理タブ */}
       {tabValue === 2 && (
+        <Box>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              mb: 3,
+            }}
+          >
+            <Typography variant='h5'>カテゴリー管理</Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant='outlined'
+                onClick={handleInitializeCategories}
+                disabled={loading}
+              >
+                初期データ作成
+              </Button>
+              <Button
+                variant='contained'
+                startIcon={<Add />}
+                onClick={() => handleCategoryDialog()}
+              >
+                新規カテゴリー作成
+              </Button>
+            </Box>
+          </Box>
+
+          <TableContainer component={Paper} variant='outlined'>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>カテゴリー名</TableCell>
+                  <TableCell>説明</TableCell>
+                  <TableCell>表示順</TableCell>
+                  <TableCell>状態</TableCell>
+                  <TableCell align='center'>操作</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {categories.map(category => (
+                  <TableRow key={category.id}>
+                    <TableCell>
+                      <Typography variant='body1' sx={{ fontWeight: 'bold' }}>
+                        {category.name}
+                        {category.id.startsWith('default-') && (
+                          <Chip
+                            size='small'
+                            label='仮データ'
+                            color='warning'
+                            variant='outlined'
+                            sx={{ ml: 1 }}
+                          />
+                        )}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant='body2' color='text.secondary'>
+                        {category.description ||
+                          (category.id.startsWith('default-')
+                            ? '編集して実際のカテゴリーとして保存してください'
+                            : '-')}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant='body2'>{category.order}</Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size='small'
+                        label={
+                          category.isActive !== false
+                            ? 'アクティブ'
+                            : '非アクティブ'
+                        }
+                        color={
+                          category.isActive !== false ? 'success' : 'default'
+                        }
+                        variant='outlined'
+                      />
+                    </TableCell>
+                    <TableCell align='center'>
+                      <IconButton
+                        size='small'
+                        onClick={() => handleCategoryDialog(category)}
+                        color='primary'
+                      >
+                        <Edit />
+                      </IconButton>
+                      <IconButton
+                        size='small'
+                        onClick={() => handleCategoryDelete(category.id)}
+                        color='error'
+                        disabled={category.id.startsWith('default-')}
+                      >
+                        <Delete />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+
+      {/* キャンセルログタブ */}
+      {tabValue === 3 && (
         <>
           {cancelStats && (
             <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -635,7 +1024,7 @@ const AdminPanel = () => {
       )}
 
       {/* メール送信用タブ */}
-      {tabValue === 3 && (
+      {tabValue === 4 && (
         <>
           <Box
             display='flex'
@@ -672,6 +1061,26 @@ const AdminPanel = () => {
                 </Box>
 
                 <Grid container spacing={2}>
+                  <Grid item xs={12} md={2}>
+                    <FormControl fullWidth size='small'>
+                      <InputLabel>カテゴリ</InputLabel>
+                      <Select
+                        value={emailFilters.category}
+                        onChange={e =>
+                          handleEmailFilterChange('category', e.target.value)
+                        }
+                        label='カテゴリ'
+                      >
+                        <MenuItem value=''>すべて</MenuItem>
+                        {getAvailableCategories().map(category => (
+                          <MenuItem key={category} value={category}>
+                            {category}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
                   <Grid item xs={12} md={3}>
                     <FormControl fullWidth size='small'>
                       <InputLabel>講座</InputLabel>
@@ -852,13 +1261,38 @@ ${user.bookings
             <Typography variant='h4' component='h1'>
               講座管理
             </Typography>
-            <Button
-              variant='contained'
-              startIcon={<Add />}
-              onClick={() => handleOpenDialog()}
-            >
-              新規講座作成
-            </Button>
+            <Box display='flex' gap={2} alignItems='center'>
+              <FormControl size='small' sx={{ minWidth: 150 }}>
+                <InputLabel>カテゴリ</InputLabel>
+                <Select
+                  value={courseCategory}
+                  onChange={e => setCourseCategory(e.target.value)}
+                  label='カテゴリ'
+                >
+                  <MenuItem value='all'>すべて</MenuItem>
+                  {categories.map(category => (
+                    <MenuItem key={category.id} value={category.name}>
+                      {category.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <Button
+                variant='outlined'
+                size='small'
+                onClick={handleUpdateCategories}
+                disabled={loading}
+              >
+                カテゴリ設定
+              </Button>
+              <Button
+                variant='contained'
+                startIcon={<Add />}
+                onClick={() => handleOpenDialog()}
+              >
+                新規講座作成
+              </Button>
+            </Box>
           </Box>
 
           {error && (
@@ -879,9 +1313,25 @@ ${user.bookings
                       mb={2}
                     >
                       <Box>
-                        <Typography variant='h6' component='h2'>
-                          {course.title}
-                        </Typography>
+                        <Box display='flex' alignItems='center' gap={1} mb={1}>
+                          <Typography variant='h6' component='h2'>
+                            {course.title}
+                          </Typography>
+                          <Chip
+                            size='small'
+                            label={course.category || '未分類'}
+                            color={
+                              course.category === '第二弾'
+                                ? 'primary'
+                                : 'default'
+                            }
+                          />
+                          <Chip
+                            size='small'
+                            label={course.isActive ? '公開中' : '非公開'}
+                            color={course.isActive ? 'success' : 'warning'}
+                          />
+                        </Box>
                       </Box>
                       <IconButton onClick={() => handleOpenDialog(course)}>
                         <Edit />
@@ -994,6 +1444,52 @@ ${user.bookings
                 />
               )}
             />
+
+            <Grid container spacing={2} sx={{ mt: 1 }}>
+              <Grid item xs={12} md={6}>
+                <Controller
+                  name='category'
+                  control={control}
+                  rules={{ required: 'カテゴリを選択してください' }}
+                  render={({ field }) => (
+                    <FormControl fullWidth error={!!errors.category}>
+                      <InputLabel>カテゴリ</InputLabel>
+                      <Select {...field} label='カテゴリ'>
+                        {categories.map(category => (
+                          <MenuItem key={category.id} value={category.name}>
+                            {category.name}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.category && (
+                        <Typography
+                          variant='caption'
+                          color='error'
+                          sx={{ mt: 1 }}
+                        >
+                          {errors.category.message}
+                        </Typography>
+                      )}
+                    </FormControl>
+                  )}
+                />
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Controller
+                  name='isActive'
+                  control={control}
+                  render={({ field }) => (
+                    <FormControl fullWidth>
+                      <InputLabel>表示状態</InputLabel>
+                      <Select {...field} label='表示状態'>
+                        <MenuItem value={true}>申込者に表示</MenuItem>
+                        <MenuItem value={false}>管理者のみ表示</MenuItem>
+                      </Select>
+                    </FormControl>
+                  )}
+                />
+              </Grid>
+            </Grid>
 
             <Box
               display='flex'
@@ -1137,6 +1633,97 @@ ${user.bookings
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseDialog}>キャンセル</Button>
+            <Button type='submit' variant='contained' disabled={submitting}>
+              {submitting ? '保存中...' : '保存'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* カテゴリー管理ダイアログ */}
+      <Dialog
+        open={categoryDialog}
+        onClose={() => setCategoryDialog(false)}
+        maxWidth='sm'
+        fullWidth
+      >
+        <DialogTitle>
+          {editingCategory ? 'カテゴリー編集' : '新規カテゴリー作成'}
+        </DialogTitle>
+        <form onSubmit={handleCategorySubmit}>
+          <DialogContent>
+            <TextField
+              fullWidth
+              label='カテゴリー名'
+              value={categoryForm.name}
+              onChange={e =>
+                setCategoryForm({ ...categoryForm, name: e.target.value })
+              }
+              margin='normal'
+              required
+            />
+            <TextField
+              fullWidth
+              label='説明'
+              value={categoryForm.description}
+              onChange={e => {
+                const newForm = {
+                  ...categoryForm,
+                  description: e.target.value,
+                };
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('説明フィールド変更:', e.target.value);
+                  console.log('新しいフォーム状態:', newForm);
+                }
+                setCategoryForm(newForm);
+              }}
+              margin='normal'
+              multiline
+              rows={2}
+            />
+            <TextField
+              fullWidth
+              label='表示順'
+              type='number'
+              value={categoryForm.order}
+              onChange={e =>
+                setCategoryForm({
+                  ...categoryForm,
+                  order: parseInt(e.target.value) || 1,
+                })
+              }
+              margin='normal'
+              required
+            />
+            <FormControl fullWidth margin='normal'>
+              <InputLabel>状態</InputLabel>
+              <Select
+                value={categoryForm.isActive}
+                onChange={e =>
+                  setCategoryForm({ ...categoryForm, isActive: e.target.value })
+                }
+                label='状態'
+              >
+                <MenuItem value={true}>アクティブ</MenuItem>
+                <MenuItem value={false}>非アクティブ</MenuItem>
+              </Select>
+            </FormControl>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setCategoryDialog(false);
+                setEditingCategory(null);
+                setCategoryForm({
+                  name: '',
+                  description: '',
+                  isActive: true,
+                  order: 1,
+                });
+              }}
+            >
+              キャンセル
+            </Button>
             <Button type='submit' variant='contained' disabled={submitting}>
               {submitting ? '保存中...' : '保存'}
             </Button>

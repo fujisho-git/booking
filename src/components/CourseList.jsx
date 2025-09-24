@@ -20,7 +20,7 @@ import {
   School,
 } from '@mui/icons-material';
 
-import { getCourses, getBookingsCount } from '../utils/firestore';
+import { getActiveCourses, getBookingsCount } from '../utils/firestore';
 
 const CourseList = () => {
   const [courses, setCourses] = useState([]);
@@ -37,7 +37,7 @@ const CourseList = () => {
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const coursesData = await getCourses();
+      const coursesData = await getActiveCourses();
       setCourses(coursesData);
 
       // 各講座の申し込み状況を取得
@@ -53,8 +53,14 @@ const CourseList = () => {
       }
       setBookingCounts(counts);
     } catch (err) {
-      setError('講座の取得に失敗しました');
-      console.error(err);
+      const errorMessage = `講座の取得に失敗しました: ${err.message || '不明なエラー'}`;
+      setError(errorMessage);
+      console.error('CourseList fetchCourses エラー:', err);
+      console.error('エラー詳細:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack,
+      });
     } finally {
       setLoading(false);
     }

@@ -70,7 +70,7 @@ const BookingForm = () => {
 
   useEffect(() => {
     fetchCourse();
-  }, [courseId]);
+  }, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // ローカルストレージからユーザー情報を復元

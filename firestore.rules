@@ -45,6 +45,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     
+    // カテゴリー（categories）コレクション
+    match /categories/{categoryId} {
+      // 読み取りは誰でも可能（講座カテゴリーを表示するため）
+      allow read: if true;
+      
+      // 作成・更新・削除は認証済みユーザーのみ（管理者用）
+      allow create, update, delete: if request.auth != null;
+    }
+    
     // バリデーション関数
     function isValidBookingData(data) {
       return data.keys().hasAll([
