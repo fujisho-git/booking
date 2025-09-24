@@ -33,6 +33,7 @@ import {
   createBooking,
   getBookingsCount,
   checkUserBookingExistsBySchedule,
+  checkUserBookingExistsByCourseTitle,
 } from '../utils/firestore';
 
 const BookingForm = () => {
@@ -48,6 +49,7 @@ const BookingForm = () => {
   const [alreadyBookedSchedules, setAlreadyBookedSchedules] = useState(
     new Set()
   );
+  const [courseAlreadyBooked, setCourseAlreadyBooked] = useState(false);
 
   const {
     control,
@@ -92,31 +94,52 @@ const BookingForm = () => {
   }, [reset]);
 
   useEffect(() => {
-    // ユーザー情報が入力された際に申し込み済みスケジュールをチェック
+    // ユーザー情報が入力された際に講座への申し込み状況をチェック
     const checkBookingStatus = async () => {
       if (watchedCompanyName && watchedFullName && course) {
-        const bookedSchedules = new Set();
-
-        // 各スケジュールに対して申し込み済みかチェック
-        for (const schedule of course.schedules || []) {
-          const hasBooking = await checkUserBookingExistsBySchedule(
-            course.id,
-            schedule.id,
-            watchedCompanyName,
-            watchedFullName
-          );
-          if (hasBooking) {
-            bookedSchedules.add(schedule.id);
-          }
-        }
-
-        console.log(
-          `講座「${course.title}」での申し込み確認:`,
-          `${bookedSchedules.size}/${course.schedules?.length || 0} スケジュールに申し込み済み`
+        // 講座名ベースで申し込み済みかチェック
+        const hasCourseBooking = await checkUserBookingExistsByCourseTitle(
+          course.title,
+          watchedCompanyName,
+          watchedFullName
         );
-        setAlreadyBookedSchedules(bookedSchedules);
+
+        if (hasCourseBooking) {
+          // 講座全体に申し込み済みの場合、すべてのスケジュールを無効化
+          const allScheduleIds = new Set(
+            course.schedules?.map(s => s.id) || []
+          );
+          setAlreadyBookedSchedules(allScheduleIds);
+          setCourseAlreadyBooked(true);
+          console.log(
+            `講座「${course.title}」は既に申し込み済みです。すべてのスケジュールが無効化されました。`
+          );
+        } else {
+          // 講座に申し込みがない場合は、スケジュール単位でチェック
+          setCourseAlreadyBooked(false);
+          const bookedSchedules = new Set();
+
+          for (const schedule of course.schedules || []) {
+            const hasBooking = await checkUserBookingExistsBySchedule(
+              course.id,
+              schedule.id,
+              watchedCompanyName,
+              watchedFullName
+            );
+            if (hasBooking) {
+              bookedSchedules.add(schedule.id);
+            }
+          }
+
+          setAlreadyBookedSchedules(bookedSchedules);
+          console.log(
+            `講座「${course.title}」での申し込み確認:`,
+            `${bookedSchedules.size}/${course.schedules?.length || 0} スケジュールに申し込み済み`
+          );
+        }
       } else {
         setAlreadyBookedSchedules(new Set());
+        setCourseAlreadyBooked(false);
       }
     };
 
@@ -300,6 +323,13 @@ const BookingForm = () => {
           <Card>
             <CardContent>
               <form onSubmit={handleSubmit(onSubmit)}>
+                {/* 講座申し込み済みアラート */}
+                {courseAlreadyBooked && (
+                  <Alert severity='warning' sx={{ mb: 3 }}>
+                    この講座には既に申し込み済みです。同じ講座への重複申し込みはできません。
+                  </Alert>
+                )}
+
                 {/* 日時選択 */}
                 <FormControl component='fieldset' fullWidth sx={{ mb: 3 }}>
                   <FormLabel component='legend'>

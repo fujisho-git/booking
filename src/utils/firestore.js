@@ -145,7 +145,19 @@ export const createBooking = async bookingData => {
       const bookingsSnapshot = await getDocs(bookingsQuery);
       const currentBookings = bookingsSnapshot.docs.map(doc => doc.data());
 
-      // 2. 重複申し込みチェック
+      // 2. 重複申し込みチェック（講座名ベース）
+      // まず、同じ講座名での申し込みがないかチェック
+      const hasCourseBooking = await checkUserBookingExistsByCourseTitle(
+        bookingData.courseTitle,
+        bookingData.companyName,
+        bookingData.fullName
+      );
+
+      if (hasCourseBooking) {
+        throw new Error('DUPLICATE_COURSE_BOOKING');
+      }
+
+      // スケジュール単位での重複チェック（念のため）
       const duplicateBooking = currentBookings.find(
         booking =>
           booking.companyName === bookingData.companyName &&
@@ -204,7 +216,11 @@ export const createBooking = async bookingData => {
     console.error('申し込み作成エラー:', error);
 
     // カスタムエラーメッセージを設定
-    if (error.message === 'DUPLICATE_BOOKING') {
+    if (error.message === 'DUPLICATE_COURSE_BOOKING') {
+      throw new Error(
+        'この講座には既に申し込み済みです。同じ講座への重複申し込みはできません。'
+      );
+    } else if (error.message === 'DUPLICATE_BOOKING') {
       throw new Error(
         'この日時には既に申し込み済みです。同じ日時への重複申し込みはできません。'
       );
@@ -291,6 +307,41 @@ export const checkUserBookingExistsBySchedule = async (
       message: error.message,
       courseId,
       scheduleId,
+      companyName: companyName?.trim(),
+      fullName: fullName?.trim(),
+    });
+
+    // エラーが発生した場合は安全側に倒して false を返す
+    return false;
+  }
+};
+
+// 特定のユーザーが特定の講座名に申し込み済みかチェック（講座名ベース）
+export const checkUserBookingExistsByCourseTitle = async (
+  courseTitle,
+  companyName,
+  fullName
+) => {
+  try {
+    if (!companyName || !fullName || !courseTitle) {
+      return false;
+    }
+
+    const q = query(
+      bookingsCollection,
+      where('courseTitle', '==', courseTitle),
+      where('companyName', '==', companyName.trim()),
+      where('fullName', '==', fullName.trim())
+    );
+
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('講座名ベース申し込み確認エラー:', error);
+    console.error('エラー詳細:', {
+      code: error.code,
+      message: error.message,
+      courseTitle,
       companyName: companyName?.trim(),
       fullName: fullName?.trim(),
     });
